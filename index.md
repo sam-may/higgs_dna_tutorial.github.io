@@ -70,5 +70,5 @@ conda env update --file environment.yml --prune
 # 3. Using HiggsDNA for physics analysis 
 The likely starting point for the majority of users is the `scripts/run_analysis.py` script. This script can be used to run a selection (i.e. a sequence of `higgs_dna.taggers.tagger.Tagger` objects) and apply scale factors and corrections (i.e. a set of `higgs_dna.systematics.systematic.Systematic` objects) over a list of samples (specified through a `json` file), and create a set of ntuple-like outputs (in the `parquet` format) with a specified set of fields (or ``branches''), merging the outputs and calculating scale1fb and scaling the normalization of weights for MC samples, if requested.
 
-We can illustrate most of the functionality through an example: suppose I want to develop a ttH analysis.  
+We can illustrate most of the functionality through an example: suppose I want to develop a ttH analysis, 
 
