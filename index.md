@@ -76,18 +76,69 @@ The `scripts/run_analysis.py` script can be used for a variety of purposes, incl
 - **Systematics studies** : creating ntuple-like files to form the starting point for performing systematics studies (e.g. deriving a correction/scale factor for photons in a Z->ee selection)
 - **Running a full analysis** : running a selection, possibly with multiple tags, and propagating relevant systematicsand their associated uncertainties.
 
-The script can be configured to perform any of these tasks through a single `json` file, where there are 5 main fields the user will want to pay attention to:
+### 3.1.1 Creating a config file
+The script can be configured to perform any of these tasks through a single `json` config file, where there are 5 main fields the user will want to pay attention to:
 1. `"tag_sequence"` : a list which specifies a set of `higgs_dna.taggers.tagger.Tagger` objects and dictates the event selection.
 2. `"systematics"` : a dictionary with two keys, `"weights"` and `"independent_collections"`, under which a dictionary is specified for each `higgs_dna.systematics.systematic.WeightSystematic` and `higgs_dna.systematics.systematic.SystematicWithIndependentCollection`, respectively.
 3. `"samples"` : a dictionary which points to a catalog of samples, and specifies which samples and years should be processed from this catalog.
 4. `"variables_of_interest"` : a list of variables which should be saved in the output `parquet` files
 5. `"branches"` : a list of branches which should be read from the input nanoAODs.
 
+There are two additional fields, which likely do not need to be changed by the user, but should be present:
+6. `"name"` : a string which can identify this analysis
+7. `"function"` : specifies which function should be run for each job. At the time of writing, this is always the `higgs_dna.analysis.run_analysis` function, but is left to be configurable for potential future needs.
+
+A basic config file to run the diphoton preselection without systematics would look like this:
+```json
+{
+    "name" : "tth_preselection",
+    "function" : {
+        "module_name" : "higgs_dna.analysis",
+        "function_name" : "run_analysis"
+    },
+    "tag_sequence" : [
+            {
+                "module_name" : "higgs_dna.taggers.diphoton_tagger",
+                "tagger" : "DiphotonTagger"
+            }
+    ],
+    "systematics" : {
+        "weights" : {},
+        "independent_collections" : {},
+    },
+    "samples" : {
+        "catalog" : "metadata/samples/tth_tutorial.json",
+	"sample_list" : ["Data", "ttH_M125", "ggH_M125"],
+	"years" : ["2016", "2017", "2018"]
+    },
+    "variables_of_interest" : [
+        ["Diphoton", "mass"], ["Diphoton", "pt"], ["Diphoton", "eta"], ["Diphoton", "phi"], ["Diphoton", "dR"],
+        ["LeadPhoton", "pt"], ["LeadPhoton", "eta"], ["LeadPhoton", "phi"], ["LeadPhoton", "mass"], ["LeadPhoton", "mvaID"], ["LeadPhoton", "genPartFlav"], ["LeadPhoton", "pixelSeed"],
+        ["SubleadPhoton", "pt"], ["SubleadPhoton", "eta"], ["SubleadPhoton", "phi"], ["SubleadPhoton", "mass"], ["SubleadPhoton", "mvaID"], ["SubleadPhoton", "genPartFlav"], ["SubleadPhoton", "pixelSeed"],
+        "GenHggHiggs_pt", "GenHggHiggs_eta", "GenHggHiggs_phi", "GenHggHiggs_mass", "GenHggHiggs_dR",
+        "weight_central",
+        "event"
+    ],
+    "branches" : [
+            "Photon_pt", "Photon_eta", "Photon_phi", "Photon_mass",
+            "Photon_pixelSeed", "Photon_mvaID", "Photon_electronVeto",
+            "Photon_sieie",
+            "Photon_r9", "Photon_hoe", "Photon_pfRelIso03_chg", "Photon_pfRelIso03_all",
+            "Photon_isScEtaEB", "Photon_isScEtaEE",
+            "Photon_trkSumPtHollowConeDR03", "Photon_photonIso", "Photon_chargedHadronIso",
+            "Photon_genPartFlav",
+            "genWeight", "run", "event", "fixedGridRhoAll"
+    ]
+}
+```
+
 ## 3.2 Example : ttH analysis
 We can illustrate most of the functionality through an example: suppose I want to develop a ttH analysis.
 As a first step, we will run the standard diphoton preselection and a loose ttH preselection to produce a `parquet` file which we can use to make data/MC plots and yield tables and train MVAs.
 
 ### 3.2.1 Constructing a tag sequence
+As an initial step, we can construct a `json` file which will perform the diphoton preselection.
+To start, 
 
 ### 3.2.2 Adding systematics
 
