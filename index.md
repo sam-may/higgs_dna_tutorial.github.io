@@ -70,5 +70,18 @@ conda env update --file environment.yml --prune
 # 3. Using HiggsDNA for physics analysis 
 The likely starting point for the majority of users is the `scripts/run_analysis.py` script. This script can be used to run a selection (i.e. a sequence of `higgs_dna.taggers.tagger.Tagger` objects) and apply scale factors and corrections (i.e. a set of `higgs_dna.systematics.systematic.Systematic` objects) over a list of samples (specified through a `json` file), and create a set of ntuple-like outputs (in the `parquet` format) with a specified set of fields (or ``branches''), merging the outputs and calculating scale1fb and scaling the normalization of weights for MC samples, if requested.
 
-We can illustrate most of the functionality through an example: suppose I want to develop a ttH analysis, 
+The `scripts/run_analysis.py` script can be used for a variety of purposes, including:
+- Creating ntuple-like files to form the starting point for developing an analysis (making data/MC plots, yield tables, training MVAs, etc).
+- Creating ntuple-like files to form the starting point for performing systematics studies (e.g. deriving a correction/scale factor for photons in a Z->ee selection)
+- Running a full analysis (i.e. running a selection, possibly with multiple tags, and propagating relevant systematicsand their associated uncertainties).
+
+The script can be configured to perform any of these tasks through a single `json` file, where there are 5 main fields the user will want to pay attention to:
+1. `"tag_sequence"` : a list which specifies a set of `higgs_dna.taggers.tagger.Tagger` objects and dictates the event selection.
+2. `"systematics"` : a dictionary with two keys, `"weights"` and `"independent_collections"`, under which a dictionary is specified for each `higgs_dna.systematics.systematic.WeightSystematic` and `higgs_dna.systematics.systematic.SystematicWithIndependentCollection`, respectively.
+3. `"samples"` : a dictionary which points to a catalog of samples, and specifies which samples and years should be processed from this catalog.
+4. `"variables_of_interest"` : a list of variables which should be saved in the output `parquet` files
+5. `"branches"` : a list of branches which should be read from the input nanoAODs.
+
+We can illustrate most of the functionality through an example: suppose I want to develop a ttH analysis.
+As a first step 
 
