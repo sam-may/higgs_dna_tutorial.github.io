@@ -68,12 +68,13 @@ conda env update --file environment.yml --prune
 ``` 
 
 # 3. Using HiggsDNA for physics analysis 
+## 3.1 Overview
 The likely starting point for the majority of users is the `scripts/run_analysis.py` script. This script can be used to run a selection (i.e. a sequence of `higgs_dna.taggers.tagger.Tagger` objects) and apply scale factors and corrections (i.e. a set of `higgs_dna.systematics.systematic.Systematic` objects) over a list of samples (specified through a `json` file), and create a set of ntuple-like outputs (in the `parquet` format) with a specified set of fields (or ``branches''), merging the outputs and calculating scale1fb and scaling the normalization of weights for MC samples, if requested.
 
 The `scripts/run_analysis.py` script can be used for a variety of purposes, including:
-- Creating ntuple-like files to form the starting point for developing an analysis (making data/MC plots, yield tables, training MVAs, etc).
-- Creating ntuple-like files to form the starting point for performing systematics studies (e.g. deriving a correction/scale factor for photons in a Z->ee selection)
-- Running a full analysis (i.e. running a selection, possibly with multiple tags, and propagating relevant systematicsand their associated uncertainties).
+- **Developing an analysis** : creating ntuple-like files to form the starting point for developing an analysis (making data/MC plots, yield tables, training MVAs, etc).
+- **Systematics studies** : creating ntuple-like files to form the starting point for performing systematics studies (e.g. deriving a correction/scale factor for photons in a Z->ee selection)
+- **Running a full analysis** : running a selection, possibly with multiple tags, and propagating relevant systematicsand their associated uncertainties.
 
 The script can be configured to perform any of these tasks through a single `json` file, where there are 5 main fields the user will want to pay attention to:
 1. `"tag_sequence"` : a list which specifies a set of `higgs_dna.taggers.tagger.Tagger` objects and dictates the event selection.
@@ -82,6 +83,14 @@ The script can be configured to perform any of these tasks through a single `jso
 4. `"variables_of_interest"` : a list of variables which should be saved in the output `parquet` files
 5. `"branches"` : a list of branches which should be read from the input nanoAODs.
 
+## 3.2 Example : ttH analysis
 We can illustrate most of the functionality through an example: suppose I want to develop a ttH analysis.
-As a first step 
+As a first step, we will run the standard diphoton preselection and a loose ttH preselection to produce a `parquet` file which we can use to make data/MC plots and yield tables and train MVAs.
 
+### 3.2.1 Constructing a tag sequence
+
+### 3.2.2 Adding systematics
+
+### 3.2.3 Defining a list of samples
+
+### 3.2.4 Assessing the outputs
