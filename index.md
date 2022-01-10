@@ -351,10 +351,11 @@ electrons = awkward_utils.add_field(
 	name = "SelectedElectron",
 	data = syst_events.Electron[electron_cut]
 )
+```
 it is important to add the selected electrons to the events array if other Taggers or Systematics will need to access these (for example, if we wanted to calculate apply an electron scale factor, this would likely be applied on SelectedElectron, rather than the nominal Electron collection in the nanoAODs). We can then do the same for the muons and the jets.
 
 We might also want to sort the jets by b-tag score (rather than pT by default) in order to do things like count the number of jets passing a given working point, or getting the highest b-tag score in an event. We can obtain a resorted version of the jets with:
-```
+```python
 bjets = jets[awkward.argsort(jets.btagDeepFlavB, axis = 1, ascending = False)]
 ```
 
