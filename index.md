@@ -330,7 +330,7 @@ DEFAULT_OPTIONS = {
 In doing this, the pT cuts for the electrons and muons will be 20.0, while all other cuts will remain the same as the default options listed under `leptons_selections.py`. We also define the option `"dr_photons"` so that we can ensure the selected leptons are not overlapping with the selected photons.
 
 We first calculate the cut which gives us the selected electrons from the input Electron collection:
-```
+```python
 electron_cut = lepton_selections.select_electrons(
 	electrons = syst_events.Electron,
 	options = self.options["electrons"],
@@ -345,7 +345,7 @@ electron_cut = lepton_selections.select_electrons(
 )
 ```
 and then add these electrons to the events array with the name "SelectedElectron":
-```
+```python
 electrons = awkward_utils.add_field(
 	events = syst_events,
 	name = "SelectedElectron",
@@ -359,7 +359,7 @@ bjets = jets[awkward.argsort(jets.btagDeepFlavB, axis = 1, ascending = False)]
 ```
 
 we can then finish our preselection by making requirements on the number of leptons and jets:
-```
+```python
 # Preselection
 n_electrons = awkward.num(electrons)
 n_muons = awkward.num(muons)
