@@ -91,7 +91,7 @@ There are two additional fields, which likely do not need to be changed by the u
 A basic config file to run the diphoton preselection without systematics would look like this:
 ```json
 {
-    "name" : "tth_preselection",
+    "name" : "diphoton_preselection",
     "function" : {
         "module_name" : "higgs_dna.analysis",
         "function_name" : "run_analysis"
@@ -99,12 +99,18 @@ A basic config file to run the diphoton preselection without systematics would l
     "tag_sequence" : [
             {
                 "module_name" : "higgs_dna.taggers.diphoton_tagger",
-                "tagger" : "DiphotonTagger"
+                "tagger" : "DiphotonTagger",
+		"kwargs" : {
+	            "name" : "diphoton_tagger",
+		    "options" : {
+			"gen_info" : { "calculate" : true }
+		    }
+		}
             }
     ],
     "systematics" : {
         "weights" : {},
-        "independent_collections" : {},
+        "independent_collections" : {}
     },
     "samples" : {
         "catalog" : "metadata/samples/tth_tutorial.json",
@@ -127,6 +133,7 @@ A basic config file to run the diphoton preselection without systematics would l
             "Photon_isScEtaEB", "Photon_isScEtaEE",
             "Photon_trkSumPtHollowConeDR03", "Photon_photonIso", "Photon_chargedHadronIso",
             "Photon_genPartFlav",
+ 	    "GenPart_eta", "GenPart_genPartIdxMother", "GenPart_mass", "GenPart_pdgId", "GenPart_phi", "GenPart_pt", "GenPart_status","GenPart_statusFlags",
             "genWeight", "run", "event", "fixedGridRhoAll"
     ]
 }
@@ -137,11 +144,92 @@ We can illustrate most of the functionality through an example: suppose I want t
 As a first step, we will run the standard diphoton preselection and a loose ttH preselection to produce a `parquet` file which we can use to make data/MC plots and yield tables and train MVAs.
 
 ### 3.2.1 Constructing a tag sequence
-As an initial step, we can construct a `json` file which will perform the diphoton preselection.
-To start, 
+As an initial step, we can construct a `json` file which will perform the diphoton preselection. We can start with the the file above, which is also located in `higgs_dna/metadata/tutorial/diphoton.json`.
+
+In this example, the `DiphotonTagger` would be run over all events (with the default options listed in `higgs_dna/taggers/diphoton_tagger.py`), saving the variables listed under `"variables_of_interest"` into parquet files. All samples listed under `"samples"` will be processed for all years listed under `"years"`. To start, we can run over just the ttH sample and run over just a couple files:
+```
+python run_analysis.py
+--log-level "DEBUG"
+--config "metadata/tutorial/diphoton.json" 
+--merge_outputs # merge all parquets into 1 file
+--short # run just one job per sample/year
+--sample_list "ttH_M125" # run over only these samples (csv)
+--output_dir "tutorial_dipho" # directory to save outputs to
+```
+
+After verifying that there are no errors, we can remove the `--short` option and run over the full set of Run 2 ttH M125 MC.
+
+Since the samples are accessed via `xrootd`, HiggsDNA will check for a valid proxy first and raise an error if it does not find one:
+```
+WARNING  [misc_utils : check_proxy] We were not able to find grid proxy or proxy was found to be      misc_utils.py:127
+         expired. Output of 'voms-proxy-info': ['', "Couldn't find a valid proxy.", '']                                
+ERROR    [CondorManager : prepare_inputs] We were not able to find grid proxy or proxy was found  sample_manager.py:114
+         to be expired. Since you are accessing files through xrd, a valid proxy is necessary.                         
+         NoneType: None 
+```
+
+After ensuring we have a valid proxy, HiggsDNA will first print out some summary info about the run options we selected with our config file. Next, it will run the `SampleManager` class to loop through each of the samples and years and grab the relevant files:
+```
+DEBUG    [SampleManager : get_samples] For sample 'ttH_M125', year '2018', found xs of 0.507100 pb sample_manager.py:73
+         and bf of 0.002270                                                                                            
+DEBUG    [SampleManager : get_samples] For sample 'ttH_M125', year '2018', we interpreted the     sample_manager.py:109
+         specified files 'root://redirector.t2.ucsd.edu//store/user/hmei/nanoaod_runII/HHggtautau                      
+         /ttHJetToGG_M125_13TeV_amcatnloFXFX_madspin_pythia8_RunIIAutumn18MiniAOD-102X_upgrade201                      
+         8_realistic_v15-v1_MINIAODSIM_v0.6_20201021/' as a directory to be accessed via xrd                           
+DEBUG    [SampleManager : get_files_from_xrd] We will find files for dir 'root://redirector.t2.uc sample_manager.py:270
+         sd.edu//store/user/hmei/nanoaod_runII/HHggtautau/ttHJetToGG_M125_13TeV_amcatnloFXFX_mads                      
+         pin_pythia8_RunIIAutumn18MiniAOD-102X_upgrade2018_realistic_v15-v1_MINIAODSIM_v0.6_20201                      
+         021/' with the command:                                                                                       
+          xrdfs root://redirector.t2.ucsd.edu/ ls /store/user/hmei/nanoaod_runII/HHggtautau/ttHJe                      
+         tToGG_M125_13TeV_amcatnloFXFX_madspin_pythia8_RunIIAutumn18MiniAOD-102X_upgrade2018_real                      
+         istic_v15-v1_MINIAODSIM_v0.6_20201021/                                                                        
+DEBUG    [SampleManager : get_files_from_xrd] Found 17 files in dir 'root://redirector.t2.ucsd.ed sample_manager.py:277
+         u//store/user/hmei/nanoaod_runII/HHggtautau/ttHJetToGG_M125_13TeV_amcatnloFXFX_madspin_p                      
+         ythia8_RunIIAutumn18MiniAOD-102X_upgrade2018_realistic_v15-v1_MINIAODSIM_v0.6_20201021/' 
+```
+
+The `Manager` classes in `higgs_dna/job_management/managers` will then split the files into jobs which may either be submitted locally (default) or to `HTCondor`:
+```
+INFO     [Task: create_jobs] Task 'ttH_M125_2016' : splitting 10 input files into 4 jobs                     task.py:63
+100%|███████████████████████████████████████████████████████████████████████████████████| 4/4 [00:00<00:00, 137.10it/s]
+INFO     [Task: create_jobs] Task 'ttH_M125_2017' : splitting 10 input files into 4 jobs                     task.py:63
+100%|███████████████████████████████████████████████████████████████████████████████████| 4/4 [00:00<00:00, 139.74it/s]
+INFO     [Task: create_jobs] Task 'ttH_M125_2018' : splitting 17 input files into 6 jobs                     task.py:63
+100%|███████████████████████████████████████████████████████████████████████████████████| 6/6 [00:00<00:00, 218.09it/s]
+INFO     [AnalysisManager : run] Running 3 tasks with 37 total input files split over 3 total jobs.     analysis.py:283
+```
+
+NOTE: the current job management tools are planned to be superseded by `coffea` style tools.
+
+The `Manager` will then periodically print out the progress of the jobs:
+```
+[JobsManager : summarize] Summarizing task progress.                                                          
+
+INFO     [JobsManager : summarize] Task 'ttH_M125_2016' :                                                managers.py:81
+                 1/1 (100.00 percent) jobs running                                                                     
+INFO     [JobsManager : summarize] Task 'ttH_M125_2017' :                                                managers.py:81
+                 1/1 (100.00 percent) jobs running                                                                                                                                                                                       
+INFO     [JobsManager : summarize] Task 'ttH_M125_2018' :                                                managers.py:81
+                 1/1 (100.00 percent) jobs completed
+``` 
+until all jobs are completed. Once all jobs are completed, it will then merge each of the individual `parquet` files. In the cases of merging files of different years or samples, new fields `year` and `process_id` will be added to the `parquet` files with relevant values. Merging will also calculate scale1fb values for MC samples (provided a cross section is given) based on the number of successfully processed events. This means that in the case of a single corrupt MC file that does not run successfully, your normalization will still be calculated correctly. The `weight_central` branch will be scaled according to the scale1fb and luminosity for the given year (though the unscaled values are still available in the unmerged files, if desired).
+
+HiggsDNA lets us know that all jobs have completed and tells us where the merged `parquet` file is located:
+```
+INFO     [JobsManager : merge_outputs] For syst_tag 'nominal' merging 3 files into merged file          managers.py:126
+         '/home/users/smay/HiggsDNA/scripts/tutorial_dipho/merged_nominal.parquet'.                                    
+DEBUG             merging 539177 events                                                                 managers.py:130
+INFO     [AnalysisManager : run] Finished running analysis 'diphoton_preselection'. Elapsed time:       analysis.py:302
+         0:03:51.303396 (hours:minutes:seconds). 
+```
+
+
+ 
 
 ### 3.2.2 Adding systematics
 
 ### 3.2.3 Defining a list of samples
 
 ### 3.2.4 Assessing the outputs
+
+# awkward Arrays and Columnar Analysis
