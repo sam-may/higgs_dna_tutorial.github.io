@@ -223,8 +223,162 @@ INFO     [AnalysisManager : run] Finished running analysis 'diphoton_preselectio
          0:03:51.303396 (hours:minutes:seconds). 
 ```
 
+It also prints out some useful information about the physics content and technical aspects of running:
+```
+[AnalysisManager : run] Task 'ttH_M125_2017', PERFORMANCE summary                                             
+DEBUG             [PERFORMANCE : ttH_M125_2017] Processed 414189 total events in 0:01:12.598349         analysis.py:306
+         (hours:minutes:seconds) of total runtime (5705.21 Hz).                                                        
+DEBUG             [PERFORMANCE : ttH_M125_2017] Fraction of runtime spent on load: 91.28 percent        analysis.py:308
+DEBUG             [PERFORMANCE : ttH_M125_2017] Fraction of runtime spent on syst: 0.00 percent         analysis.py:308
+DEBUG             [PERFORMANCE : ttH_M125_2017] Fraction of runtime spent on taggers: 7.48 percent      analysis.py:308
+DEBUG    [AnalysisManager : run] Task 'ttH_M125_2017', PHYSICS summary                                  analysis.py:310
+DEBUG             [PHYSICS : ttH_M125_2017] events set 'nominal' has eff. of 49.59 percent (all         analysis.py:312
+         taggers)                                                                                                      
+DEBUG             [PHYSICS : ttH_M125_2017] With a cross section times BF of 0.001151117 pb and a sum   analysis.py:314
+         of weights of 409277.240008000, scale1fb for this sample is 0.000002813
+```
 
- 
+We can then explore this output file in several ways. One useful tool is located under `higgs_dna/bonus/assess.py` and will be described later in the tutorial, but for quick exploration, the `python` interpreter serves nicely:
+```
+python
+Python 3.9.7 | packaged by conda-forge | (default, Sep 29 2021, 19:20:46) 
+[GCC 9.4.0] on linux
+Type "help", "copyright", "credits" or "license" for more information.
+>>> import awkward
+>>> events = awkward.from_parquet("tutorial_dipho/merged_nominal.parquet")
+```
+
+We can check the total number of raw events and the fields which are saved for each event:
+```
+>>> len(events)
+539177
+>>> events.fields
+['Diphoton_mass', 'Diphoton_pt', 'Diphoton_eta', 'Diphoton_phi', 'Diphoton_dR', 'LeadPhoton_pt', 'LeadPhoton_eta', 'LeadPhoton_phi', 'LeadPhoton_mass', 'LeadPhoton_mvaID', 'LeadPhoton_genPartFlav', 'LeadPhoton_pixelSeed', 'SubleadPhoton_pt', 'SubleadPhoton_eta', 'SubleadPhoton_phi', 'SubleadPhoton_mass', 'SubleadPhoton_mvaID', 'SubleadPhoton_genPartFlav', 'SubleadPhoton_pixelSeed', 'GenHggHiggs_pt', 'GenHggHiggs_eta', 'GenHggHiggs_phi', 'GenHggHiggs_mass', 'GenHggHiggs_dR', 'event', 'weight_central_initial', 'weight_central', 'process_id', 'year']
+```
+
+We can check the total number of weighted events for all Run 2 and for an individual year:
+```
+>>> awkward.sum(events.weight_central)
+77.62231871412764
+>>> awkward.sum(events.weight_central[events.year == 2018])
+33.89958685493177
+```
+
+We can check the diphoton pT and compare it to the gen-level pT:
+```
+>>> events.Diphoton_pt
+<Array [91.8, 106, 110, 271, ... 13, 67.9, 230] type='539177 * float32'>
+>>> events.GenHggHiggs_pt
+<Array [91.2, 108, 109, 270, ... 13.4, 69, 224] type='539177 * float64'>
+```
+
+Next, we can add a loose ttH preselection that one might use as a starting point for developing a ttH analysis: data/MC studies, training MVAs, etc.
+
+For a loose ttH preselection we will define two orthogonal channels, hadronic and leptonic, targeting fully hadronic and semi/di-leptonic decays of the ttbar system, respectively.
+
+The hadronic channel will require:
+- exactly 0 leptons
+- at least 4 jets
+
+while the leptonic channel will require:
+- at least 1 lepton
+- at least 2 jets 
+
+This is implemented in a `higgs_dna.taggers.tagger.Tagger` class under `higgs_dna/taggers/tutorial.py`. We will walk through this example.
+
+The first (optional) step is creating a constructor for the tagger. This is not necessary, but in the example below we define the constructor such that the default options can be updated through the config `json`. In this way, to update a single cut value, for example the electron pT cut, this single value can be included in the config `json` and that value will be updated while leaving all other values as their default values:
+```
+def __init__(self, name, options = {}, is_data = None, year = None):
+        super(TTHPreselTagger, self).__init__(name, options, is_data, year)
+
+        if not options:
+            self.options = DEFAULT_OPTIONS
+        else:
+            self.options = misc_utils.update_dict(
+                    original = DEFAULT_OPTIONS,
+                    new = options
+            )
+```
+
+Next, we can define the function which actually performs the selection, `calculate_selection`. We will first select our physics objects: electrons, muons, and jets. The helper functions `select_electrons`, `select_muons`, and `select_jets` located under `higgs_dna/selections/lepton_selections.py` and `higgs_dna/selections/jet_selections.py` will be useful for this.
+
+Each of these functions has default options which can be seen in their respective files. For example, for electrons, we see:
+```json
+DEFAULT_ELECTRONS = {
+        "pt" : 10.0,
+        "eta" : 2.4,
+        "dxy" : 0.045,
+        "dz" : 0.2,
+        "id" : "WP90", # this means that the 90% eff working point ID will be used
+        "dr_photons" : 0.2, # requires that all selected electrons be at least dR > 0.2 from selected photons
+        "veto_transition" : True
+}
+```
+Perhaps we would like to deviate from the default options, requiring higher pT for our electrons and muons. We can do this by setting some default options for our tagger (this could also be done inside the config `json`):
+```json
+DEFAULT_OPTIONS = {
+    "electrons" : {
+        "pt" : 20.0,
+        "dr_photons" : 0.2
+    },
+    "muons" : {
+        "pt" : 20.0,
+        "dr_photons" : 0.2
+    }
+}   
+```
+In doing this, the pT cuts for the electrons and muons will be 20.0, while all other cuts will remain the same as the default options listed under `leptons_selections.py`. We also define the option `"dr_photons"` so that we can ensure the selected leptons are not overlapping with the selected photons.
+
+We first calculate the cut which gives us the selected electrons from the input Electron collection:
+```
+electron_cut = lepton_selections.select_electrons(
+	electrons = syst_events.Electron,
+	options = self.options["electrons"],
+	clean = {
+	    "photons" : {
+		"objects" : syst_events.Diphoton.Photon,
+		"min_dr" : self.options["electrons"]["dr_photons"]
+	    }
+	},
+	name = "SelectedElectron",
+	tagger = self
+)
+```
+and then add these electrons to the events array with the name "SelectedElectron":
+```
+electrons = awkward_utils.add_field(
+	events = syst_events,
+	name = "SelectedElectron",
+	data = syst_events.Electron[electron_cut]
+)
+it is important to add the selected electrons to the events array if other Taggers or Systematics will need to access these (for example, if we wanted to calculate apply an electron scale factor, this would likely be applied on SelectedElectron, rather than the nominal Electron collection in the nanoAODs). We can then do the same for the muons and the jets.
+
+We might also want to sort the jets by b-tag score (rather than pT by default) in order to do things like count the number of jets passing a given working point, or getting the highest b-tag score in an event. We can obtain a resorted version of the jets with:
+```
+bjets = jets[awkward.argsort(jets.btagDeepFlavB, axis = 1, ascending = False)]
+```
+
+we can then finish our preselection by making requirements on the number of leptons and jets:
+```
+# Preselection
+n_electrons = awkward.num(electrons)
+n_muons = awkward.num(muons)
+n_leptons = n_electrons + n_muons
+
+n_jets = awkward.num(jets)
+
+# Hadronic presel
+hadronic = (n_leptons == 0) & (n_jets >= 4)
+
+# Leptonic presel
+leptonic = (n_leptons >= 1) & (n_jets >= 2)
+
+presel_cut = hadronic | leptonic
+
+return presel_cut, syst_events
+```
+
+
 
 ### 3.2.2 Adding systematics
 
