@@ -379,9 +379,196 @@ presel_cut = hadronic | leptonic
 return presel_cut, syst_events
 ```
 
-
-
 ### 3.2.2 Adding systematics
+Next, we can start to add corrections and scale factors (and possibly their uncertainties) to our analysis.
+Each systematic is implemented through a class derived from the `Systematic` class in `higgs_dna/systematics/systematic.py`.
+There are two main types of systematics to consider:
+1. `WeightSystematic`: a correction and/or uncertainty on a weight
+    - `EventWeightSystematic`: a correction and/or uncertainty on the *central event weight*. This can be any of: event weight correction (e.g. pileup reweighting scale factor), event weight uncertainty (e.g. QCD scale/PDF/alpha_s weights. Up/down variations for the weight in each event, but does not modify the central event weight), or event weight correction and uncertainty (e.g. pileup reweighting scale factor and up/down variations)
+    - `ObjectWeightSystematic`: a correction and/or uncertainty on a *per-object weight*. Almost always translated into a per-event weight. For example, lepton ID SFs: the scale factor ("correction") is calculated on a per-lepton basis. This gets translated into a per-event weight by multiplying the scale factors of each lepton selected by a tagger in each event.
+2. `SystematicWithIndependentCollection`: varies a per-event (e.g. MET resolution up/down) or per-object (e.g. photon scales/smearings up/down) quantity, and results in an entirely new set of events.
+
+Systematics can be specified through the config `json` file under the `"systematics"` field. This field is expected to contain a dictionary with two fields, `"weights"` and `"independent_collections"`, where the former will be translated into `WeightSystematic` objects and the latter will be translated into `SystematicWithIndependentCollection` objects by the `SystematicsProducer` class under `higgs_dna/systematics/systematics_producer.py`.
+
+### EventWeightSystematic 
+We will first examine how to implement various types of weight systematics. The simplest example is the case where the relevant weight(s) are stored as branches in the nanoAOD, like the L1-prefiring inefficieny and uncertainties. Supposing the central/up/down weights are stored as `L1PreFiringWeight_Nom`/`L1PreFiringWeight_Up`/`L1PreFiringWeight_Dn`, we can implement this in the following way:
+```json
+"systematics" : {
+        "weights" : {
+            "L1_prefiring_sf" : {
+                "type" : "event",
+                "method" : "from_branch",
+                "branches" : {
+                    "central" : "L1PreFiringWeight_Nom",
+                    "up" : "L1PreFiringWeight_Up",
+                    "down" : "L1PreFiringWeight_Dn"
+                },
+                "modify_central_weight" : true,
+                "years" : ["2016", "2017"]
+            }
+        }
+}
+``` 
+We can step through this entry line-by-line. First, it is given a name `"L1_prefiring_sf"` which will identify resulting fields in the output parquet files. Next,
+```
+"type" : "event"
+```
+indicates that this is an event-level weight, as opposed to an object-level weight (for which we would assign a key of `"object"`). The method is indicated as
+```
+"method" : "from_branch"
+```
+meaning that the central/up/down variations will be read from branches in the input nanoAOD. Many systematics are not already present in the nanoAOD and need to be calculated on-the-fly. For these, we would assign a key of `"from_function"` and point to the relevant function in HiggsDNA. Since we have indicated that this is read from branches, we next provide the relevant branches:
+```
+"branches" : {
+    "central" : "L1PreFiringWeight_Nom",
+    "up" : "L1PreFiringWeight_Up",
+    "down" : "L1PreFiringWeight_Dn"
+}
+```
+We next indicate that the central weight of this systematic should modify (multiplicatively) the central event weight:
+```
+"modify_central_weight" : true
+```
+If we had instead indicated `false`, the central event weight would not be modified, but the central/up/down variations of the weight would still be stored in our output `parquet` files.
+Finally, we indicate that this systematic is only applicable for specific years:
+```
+"years" : ["2016", "2017"]
+```
+We could also indicate if a systematic is only applicable for specific samples (e.g. some theory uncertainties) or for specific taggers. TODO: provide these examples.
+
+### ObjectWeightSystematic
+The syntax for implementing an `ObjectWeightSystematic` is similar, but we must also provide the *input* and *target* collections. The input collection is the set of objects on which this scale factor can be calculated while the target collection is the set of objects which should be used to derive the resulting event-level weight.
+
+We can see this through the example of the electron ID SF:
+```json
+"electron_id_sf" : {
+    "type" : "object",
+    "method" : "from_function",
+    "function" : {
+        "module_name" : "higgs_dna.systematics.lepton_systematics",
+        "name" : "electron_id_sf"
+    },
+    "modify_central_weight" : true,
+    "input_collection" : "Electron",
+    "target_collections" : ["SelectedElectron"],
+    "kwargs" : {
+        "working_point" : "wp90iso"
+    }
+}
+```
+Going through this entry line-by-line again, we see that `"method"` is indicated as `"from_function"`, meaning a function inside HiggsDNA will be used to calculate the weight variations. We specify this function:
+```
+"function" : {
+        "module_name" : "higgs_dna.systematics.lepton_systematics",
+        "name" : "electron_id_sf"
+    }
+```
+which means that there is a function inside `higgs_dna/systematics/lepton_systematics.py` named `"electron_id_sf"` which will be used to calculate the weight variations.
+The input collection is indicated as the nominal electron collection from nanoAOD:
+```
+"input_collection" : "Electron"
+```
+and the target collection is indicated as the `"SelectedElectron"` collection which we defined inside our `TTHPreselTagger` class:
+```
+"target_collections" : ["SelectedElectron"]
+```
+The target collection is given as a list, as there could be multiple target collections we apply this to. For example, another tagger may have a tighter pT requirement on their electrons and would want to calculate the event-level SF based on these higher pT electrons, which they might name `"SelectedHighPtElectron"`. In this case, we could pass both target collections:
+```
+"target_collections" : ["SelectedElectron", "SelectedHighPtElectron"],
+```
+and indicate which collection corresponds to which tagger through a `"modifies_taggers"` field: TODO add example.
+We also indicated some keyword arguments for the function:
+```
+"kwargs" : {
+    "working_point" : "wp90iso"
+}
+```
+indicating that we want the scale factors corresponding to the 90 percent working point which includes isolation.
+We can next examine the function used to calculate the weight variations, which relies on the CMS `correctionlib` package.
+
+In general, all functions used to calculate weight systematics should include the following keyword arguments: `"events"`, `"year"`, `"central_only"`, and for `ObjectWeightSystematics`, `"input_collection"`. The `SystematicsProducer` will check if the function is configured properly and raise an error if not. There can be arbitarily many additional keyword arguments whose values can be set throug the `"kwargs"` field as above. They should return a dictionary of variations, whose keys may include any subset of `"central"`, `"up"`, and `"down"`.
+
+The electron ID SF function, `higgs_dna.systematics.lepton_systematics.electron_id_sf` reads corrections from a json file provided by the EGM POG:
+```python
+ELECTRON_ID_SF_FILE = {
+    "2016" : "jsonpog-integration/POG/EGM/2016postVFP_UL/electron.json",
+    "2017" : "jsonpog-integration/POG/EGM/2017_UL/electron.json",
+    "2018" : "jsonpog-integration/POG/EGM/2018_UL/electron.json"
+}
+
+ELECTRON_ID_SF = {
+    "2016" : "2016postVFP",
+    "2017" : "2017",
+    "2018" : "2018"
+}
+
+def electron_id_sf(events, year, central_only, input_collection, working_point = "none"):
+    """
+    See:
+        - https://cms-nanoaod-integration.web.cern.ch/commonJSONSFs/EGM_electron_Run2_UL/EGM_electron_2017_UL.html
+        - https://gitlab.cern.ch/cms-nanoAOD/jsonpog-integration/-/blob/master/examples/electronExample.py
+    """
+
+    required_fields = [
+        (input_collection, "eta"), (input_collection, "pt")
+    ]
+
+    missing_fields = awkward_utils.missing_fields(events, required_fields)
+
+    evaluator = _core.CorrectionSet.from_file(misc_utils.expand_path(ELECTRON_ID_SF_FILE[year]))
+    
+    electrons = events[input_collection]
+
+    # Flatten electrons then convert to numpy for compatibility with correctionlib
+    n_electrons = awkward.num(electrons)
+    electrons_flattened = awkward.flatten(electrons)
+
+    ele_eta = numpy.clip(
+        awkward.to_numpy(electrons_flattened.eta),
+        -2.49999,
+        2.49999 # SFs only valid up to eta 2.5
+    )
+
+    ele_pt = numpy.clip(
+        awkward.to_numpy(electrons_flattened.pt),
+        10.0, # SFs only valid for pT >= 10.0
+        499.999 # and pT < 500.
+    )
+
+    # Calculate SF and syst
+    variations = {}
+    sf = evaluator["UL-Electron-ID-SF"].evalv(
+            ELECTRON_ID_SF[year],
+            "sf",
+            working_point,
+            ele_eta,
+            ele_pt
+    )
+    variations["central"] = awkward.unflatten(sf, n_electrons)
+
+    if not central_only:
+        syst = evaluator["UL-Electron-ID-SF"].evalv(
+                ELECTRON_ID_SF[year],
+                "syst",
+                working_point,
+                ele_eta,
+                ele_pt
+        )
+        variations["up"] = variations["central"] + awkward.unflatten(syst, n_electrons)
+        variations["down"] = variations["central"] - awkward.unflatten(syst, n_electrons)
+
+
+    for var in variations.keys():
+        # Set SFs = 1 for leptons which are not applicable
+        variations[var] = awkward.where(
+                (electrons.pt < 10.0) | (electrons.pt >= 500.0) | (abs(electrons.eta) >= 2.5),
+                awkward.ones_like(variations[var]),
+                variations[var]
+        )
+
+    return variations
+```
+
 
 ### 3.2.3 Defining a list of samples
 
