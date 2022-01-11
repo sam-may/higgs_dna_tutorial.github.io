@@ -436,6 +436,15 @@ Finally, we indicate that this systematic is only applicable for specific years:
 ```
 We could also indicate if a systematic is only applicable for specific samples (e.g. some theory uncertainties) or for specific taggers. TODO: provide these examples.
 
+A `WeightSystematic` does not need to modify the central value or even have a central value: a theory uncertainty which only adds an uncertainty but does not modify the central weight might look something like this:
+```json
+"dummy_theory_sf" : {
+    "type" : "event",
+    "method" : "from_branch",
+    "branches" : { "central" : "genWeight", "up" : "genWeight", "down" : "genWeight" },
+    "modify_central_weight" : false
+}
+
 ### ObjectWeightSystematic
 The syntax for implementing an `ObjectWeightSystematic` is similar, but we must also provide the *input* and *target* collections. The input collection is the set of objects on which this scale factor can be calculated while the target collection is the set of objects which should be used to derive the resulting event-level weight.
 
@@ -569,6 +578,24 @@ def electron_id_sf(events, year, central_only, input_collection, working_point =
     return variations
 ```
 
+### SystematicWithIndependentCollection
+Finally, we will see how to add a systematic which varies an event- or object-level quantity and results in an entirely new set of events. Similar to `WeightSystematic`, a `SystematicWithIndependentCollection` can be specified to be read from a branch. 
+
+For example, if we had uncertainties on the photon energy scale saved in nanoAOD branches as `"Photon_pt_up"` and `"Photon_pt_down"`, we could create independent collections for the up/down variations with:
+```json
+"dummy_photon_pt_syst" : {
+    "method" : "from_branch",
+    "branch_modified" : ["Photon", "pt"],
+    "branches" : {
+        "up" : ["Photon", "pt_up"],
+        "down" : ["Photon", "pt_down"]
+    }
+ }
+``` 
+where the `"branch_modified"` field indicates that each of the variations, `"up"` and `"down"`, are provided varied values for the branch `"Photon_pt"`.
+
+A `SystematicWithIndependentCollection` can also be specified through a function, in the same way as for a `WeightSystematic`.
+TODO: examples of FNUF and Material unc  
 
 ### 3.2.3 Defining a list of samples
 
