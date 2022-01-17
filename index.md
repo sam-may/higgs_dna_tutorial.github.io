@@ -303,7 +303,7 @@ def __init__(self, name, options = {}, is_data = None, year = None):
 Next, we can define the function which actually performs the selection, `calculate_selection`. We will first select our physics objects: electrons, muons, and jets. The helper functions `select_electrons`, `select_muons`, and `select_jets` located under `higgs_dna/selections/lepton_selections.py` and `higgs_dna/selections/jet_selections.py` will be useful for this.
 
 Each of these functions has default options which can be seen in their respective files. For example, for electrons, we see:
-```json
+```python
 DEFAULT_ELECTRONS = {
         "pt" : 10.0,
         "eta" : 2.4,
@@ -315,7 +315,7 @@ DEFAULT_ELECTRONS = {
 }
 ```
 Perhaps we would like to deviate from the default options, requiring higher pT for our electrons and muons. We can do this by setting some default options for our tagger (this could also be done inside the config `json`):
-```json
+```python
 DEFAULT_OPTIONS = {
     "electrons" : {
         "pt" : 20.0,
@@ -377,6 +377,66 @@ leptonic = (n_leptons >= 1) & (n_jets >= 2)
 presel_cut = hadronic | leptonic
 
 return presel_cut, syst_events
+```
+
+### Advanced selections
+Suppose we also want to apply a z-veto for events with two opposite-sign opposite-charge leptons.
+We can first register these as four-vectors so that `awkward` knows to add them as four-vectors when we add them together:
+```
+# Register as `vector.Momentum4D` objects so we can do four-vector operations with them
+electrons = awkward.Array(electrons, with_name = "Momentum4D")
+muons = awkward.Array(muons, with_name = "Momentum4D")
+```
+
+We can then construct all ee and mumu pairs:
+```
+# Construct di-electron/di-muon pairs
+ee_pairs = awkward.combinations(
+        electrons, # objects to make combinations out of
+        2, # how many objects go in a combination
+        fields = ["LeadLepton", "SubleadLepton"] # can access these as e.g. ee_pairs.LeadLepton.pt
+)
+mm_pairs = awkward.combinations(muons, 2, fields = ["LeadLepton", "SubleadLepton"])
+
+# Concatenate these together
+z_cands = awkward.concatenate([ee_pairs, mm_pairs], axis = 1)
+z_cands["ZCand"] = z_cands.LeadLepton + z_cands.SubleadLepton # these add as 4-vectors since we registered them as "Momentum4D" objects
+```
+and now consider only Z candidates which are opposite-sign and have a dilepton mass in the Z mass window:
+```
+# Make Z candidate-level cuts
+os_cut = z_cands.LeadLepton.charge * z_cands.SubleadLepton.charge == -1
+mass_cut = (z_cands.ZCand.mass > 86.) & (z_cands.ZCand.mass < 96.)
+z_cut = os_cut & mass_cut
+z_cands = z_cands[z_cut] # OSSF lepton pairs with m_ll [86., 96.]
+```
+and finally translate this into an event-level cut -- we will veto any events with at least 2 electrons or at least 2 muons that has at least 1 passing Z candidate:
+```
+# Make event level cut
+has_z_cand = awkward.num(z_cands) >= 1 # veto any event that has a Z candidate
+ee_event = awkward.num(electrons) >= 2
+mm_event = awkward.num(muons) >= 2
+z_veto = ~(has_z_cand & (ee_event | mm_event))
+```
+
+Lastly, we can register individual cuts with the `Tagger` object to have it print out diagnostic info for us:
+```
+presel_cut = (hadronic | leptonic) & (z_veto)
+self.register_cuts(
+    names = ["hadronic presel", "leptonic presel", "z veto", "all"],
+    results = [hadronic, leptonic, z_veto, presel_cut]
+)
+```
+This step is not necessary, but will print out some useful info that can be helpful for debugging and sanity checks:
+```
+DEBUG    [Tagger] : my_TTHPreselTagger, syst variation : nominal, cut type : event, cut : hadronic       tagger.py:154
+         presel, efficiency : 0.5944                                                                                  
+DEBUG    [Tagger] : my_TTHPreselTagger, syst variation : nominal, cut type : event, cut : leptonic       tagger.py:154
+         presel, efficiency : 0.3003                                                                                  
+DEBUG    [Tagger] : my_TTHPreselTagger, syst variation : nominal, cut type : event, cut : z veto,        tagger.py:154
+         efficiency : 0.9990                                                                                          
+DEBUG    [Tagger] : my_TTHPreselTagger, syst variation : nominal, cut type : event, cut : all,           tagger.py:154
+         efficiency : 0.8940
 ```
 
 ### 3.2.2 Adding systematics
