@@ -659,10 +659,145 @@ For example, if we had uncertainties on the photon energy scale saved in nanoAOD
 ``` 
 where the `"branch_modified"` field indicates that each of the variations, `"up"` and `"down"`, are provided varied values for the branch `"Photon_pt"`.
 
-A `SystematicWithIndependentCollection` can also be specified through a function, in the same way as for a `WeightSystematic`.
-TODO: examples of FNUF and Material unc  
+A `SystematicWithIndependentCollection` can also be specified through a function, in the same way as for a `WeightSystematic`. This is shown below.
+
+Now, lets put this together with some realistic systematics. We will include the following scale factors and their uncertainties:
+- electron veto SF
+- diphoton trigger SF
+- b-tag DeepJet reshaping SF
+- electron ID SF
+- L1 pre-firing inefficiency
+and the following uncertainties on the photon pT scale which are systematics with independent collections:
+- material uncertainty
+- FNUF uncertainty
+
+In our config file, this looks like the following:
+```json
+"systematics" : {
+    "weights" : {
+        "electron_veto_sf" : {
+            "type" : "object",
+            "method" : "from_function",
+            "function" : {
+                "module_name" : "higgs_dna.systematics.photon_systematics",
+                "name" : "photon_electron_veto_sf"
+             },
+             "modify_central_weight" : true,
+             "input_collection" : "Photon",
+             "target_collections" : [["Diphoton", "Photon"]]
+        },
+        "trigger_sf" : {
+            "type" : "event",
+            "method" : "from_function",
+            "function" : {
+                "module_name" : "higgs_dna.systematics.photon_systematics",
+                "name" : "trigger_sf"
+            },
+            "modify_central_weight" : true,
+            "requires_branches" : ["Diphoton", "LeadPhoton", "SubleadPhoton"]
+        },
+        "btag_deepjet_sf" : {
+            "type" : "object",
+            "method" : "from_function",
+            "function" : {
+                "module_name" : "higgs_dna.systematics.jet_systematics",
+                "name" : "btag_deepjet_reshape_sf"
+            },
+            "modify_central_weight" : true,
+            "input_collection" : "Jet",
+            "target_collections" : ["SelectedJet"]
+        },
+        "electron_id_sf" : {
+            "type" : "object",
+            "method" : "from_function",
+            "function" : {
+                "module_name" : "higgs_dna.systematics.lepton_systematics",
+                "name" : "electron_id_sf"
+            },
+            "modify_central_weight" : true,
+            "input_collection" : "Electron",
+            "target_collections" : ["SelectedElectron"],
+            "kwargs" : {
+                "working_point" : "wp90iso"
+            }
+        },
+        "L1_prefiring_sf" : {
+            "type" : "event",
+            "method" : "from_branch",
+            "branches" : {
+                "central" : "L1PreFiringWeight_Nom",
+                "up" : "L1PreFiringWeight_Up",
+                "down" : "L1PreFiringWeight_Dn"
+            },
+            "modify_central_weight" : true,
+            "years" : ["2016", "2017"]
+        }
+    "independent_collections" : {
+        "fnuf" : {
+            "method" : "from_function",
+            "branch_modified" : ["Photon", "pt"],
+            "function" : {
+                "module_name" : "higgs_dna.systematics.photon_systematics",
+                "name" : "fnuf_unc"
+            }
+        },
+        "material" : {
+            "method" : "from_function",
+            "branch_modified" : ["Photon", "pt"],
+            "function" : {
+                "module_name" : "higgs_dna.systematics.photon_systematics",
+                "name" : "material_unc"
+            }
+        }
+    }
+}
+```
 
 ### 3.2.3 Defining a list of samples
+So far, we have run on just a few ttH files, but now we can run our preselection (diphoton selection + loose ttH selection) at scale. The `"samples"` entry of the config file allows us to specify which samples and years to run over:
+```json
+"samples" : {
+    "catalog" : "metadata/samples/tth_tutorial.json",
+    "sample_list" : ["Data", "ttH_M125", "ggH_M125"],
+    "years" : ["2016", "2017", "2018"]
+}
+```
+The `"catalog"` is a comprehensive dictionary (`json`) of many samples and their metadata and we can select which ones we run over by including the relevant keys in `"sample_list"` and the years for which we want to run in `"years"`.
+
+In the future, there will ideally be exhaustive catalogs maintained in the HiggsDNA repository by developers that will be available for users to access, but lets examine how to create a catalog. The main things we want to pay attention to are the cross section, branching fraction, and files:
+```json
+"ttH_M125" : {
+    "xs" : 0.5071,
+    "bf" : 0.00227,
+    "files" : {
+        "2016" : "root://redirector.t2.ucsd.edu//store/user/hmei/nanoaod_runII/HHggtautau/ttHJetToGG_M125_13TeV_amcatnloFXFX_madspin_pythia8_RunIIFall17MiniAODv2-PU2017_12Apr2018_94X_mc2017_realistic_v14-v1_MINIAODSIM_v0.6_20201021/",
+        "2017" : "root://redirector.t2.ucsd.edu//store/user/hmei/nanoaod_runII/HHggtautau/ttHJetToGG_M125_13TeV_amcatnloFXFX_madspin_pythia8_RunIIFall17MiniAODv2-PU2017_12Apr2018_94X_mc2017_realistic_v14-v1_MINIAODSIM_v0.6_20201021/",
+        "2018" : "root://redirector.t2.ucsd.edu//store/user/hmei/nanoaod_runII/HHggtautau/ttHJetToGG_M125_13TeV_amcatnloFXFX_madspin_pythia8_RunIIAutumn18MiniAOD-102X_upgrade2018_realistic_v15-v1_MINIAODSIM_v0.6_20201021/"
+    }
+}
+```
+Cross sections are assumed to be in units of [pb] and branching fractions are assumed to be 1 if not specified. Files can be specified in multiple ways:
+- hard-coded list of files, e.g. `"2016" : ["ntuple1.root", "ntuple2.root"]`
+- a directory (or list of directories). These can be either a local directory or an xrootd directory (as above). In the former case, `glob` will be used to find all `.root` files in the directory(s), while in the latter `xrootd` utilities will be used to find relevant files.
+- a DBS "three-slash" format dataset, e.g. `"EGamma/Run2018A.../NANOAOD"`. In this case, `dasgoclient` will be used to fetch the relevant files.
+
+Systematics that are specific to a particular sample (maybe special theory weights and/or uncertainties) can also be included in the catalog and will be calculated for that sample only.
+
+We can now run over the following samples:
+- Signal and resonant backgrounds: ttH, gluon fusion Higgs production, WH and ZH, and vector boson fusion
+- Non-resonant backgrounds: diphoton + jets, gamma + jets, V + gamma, tt + jets, tt + gamma + jets, tt + gamma gamma
+- full Run 2 data from `DoubleEG` and `EGamma` datasets
+
+In the config, this looks like:
+```
+"samples" : {
+    "catalog" : "metadata/samples/tth_tutorial.json",
+    "sample_list" : ["Data", "ttH_M125", "ggH_M125", "Diphoton", "VH_M125", "VBFH_M125", "ZGamma", "WGamma", "TTGG", "TTGamma", "TTJets", "GJets_HT-600ToInf", "GJets_HT-400To600", "GJets_HT-200To400", "GJets_HT-100To200", "GJets_HT-40To100"],
+    "years" : ["2016", "2017", "2018"]
+}
+```
+
+Given that we have many samples and files to run over, we should utilize HTCondor for more computing power. We can run our preselection (diphoton + loose ttH preselection) and propagate systematics over all the above samples with the following command: 
 
 ### 3.2.4 Assessing the outputs
 
