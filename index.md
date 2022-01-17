@@ -438,6 +438,10 @@ DEBUG    [Tagger] : my_TTHPreselTagger, syst variation : nominal, cut type : eve
 DEBUG    [Tagger] : my_TTHPreselTagger, syst variation : nominal, cut type : event, cut : all,           tagger.py:154
          efficiency : 0.8940
 ```
+The diphoton tagger and the ttH preselection tagger can be included together in a tag sequence as shown in the config file `metadata/tutorial/tth_preselection.json` and we can test this for a few ttH MC files with the command:
+```
+python run_analysis.py --log-level "DEBUG" --config "metadata/tutorial/tth_preselection.json" --merge_outputs --sample_list "ttH_M125" --output_dir "tutorial_tth" --short
+```
 
 ### 3.2.2 Adding systematics
 Next, we can start to add corrections and scale factors (and possibly their uncertainties) to our analysis.
@@ -504,6 +508,7 @@ A `WeightSystematic` does not need to modify the central value or even have a ce
     "branches" : { "central" : "genWeight", "up" : "genWeight", "down" : "genWeight" },
     "modify_central_weight" : false
 }
+```
 
 ### ObjectWeightSystematic
 The syntax for implementing an `ObjectWeightSystematic` is similar, but we must also provide the *input* and *target* collections. The input collection is the set of objects on which this scale factor can be calculated while the target collection is the set of objects which should be used to derive the resulting event-level weight.
