@@ -806,7 +806,22 @@ In the config, this looks like:
 ```
 
 Given that we have many samples and files to run over, we should utilize HTCondor for more computing power. We can run our preselection (diphoton + loose ttH preselection) and propagate systematics over all the above samples with the following command: 
+```
+python run_analysis.py --log-level "DEBUG" --config "metadata/tutorial/tth_presel_withSyst.json" --merge_outputs --output_dir "tutorial_tth_withSyst" --batch_system "condor"
+```
+which took just under 5 hours for me (averaging a couple hundred condor slots at a time), YMMV.
+
+You may notice that some jobs fail repeatedly:
+```
+WARNING  [Task : process] WARNING: Task 'TTGamma_2017' had to retire job 'TTGamma_2017_14' since it ran    task.py:131
+         unsuccessfully for 5 straight times. If this is an MC sample, this will just reduce your                     
+         statistics. If this is a data job, you have processed less events than you intended!
+```
+In this case, this is because some of the input nanoAOD files are corrupt. For MC, this simply reduces our statistics; however, for data we should ensure that all events are properly processed. Given that this is just a tutorial exercise, we can live with the 0.5% of missing data jobs.
+By default, HiggsDNA will "retire" a job after 5 unsuccesful tries. This allows the script to finish merging all of the outputs so you at least have something to work with. If you wish to resubmit all of the failed jobs again, you can do so by rerunning `run_analysis.py` with the `--resubmit_retired` argument. This will also reperform the merging and scale1fb calculation, so all of your MC will still be correctly normalized.
 
 ### 3.2.4 Assessing the outputs
+Now that we have run a ttH preselection on Run 2 data and MC, we can begin to analyze the outputs from HiggsDNA.
+To start,
 
 # awkward Arrays and Columnar Analysis
