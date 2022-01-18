@@ -279,10 +279,11 @@ For a loose ttH preselection we will define two orthogonal channels, hadronic an
 The hadronic channel will require:
 - exactly 0 leptons
 - at least 4 jets
+- at least 1 medium b-jet
 
 while the leptonic channel will require:
 - at least 1 lepton
-- at least 2 jets 
+- at least 2 jets
 
 This is implemented in a `higgs_dna.taggers.tagger.Tagger` class under `higgs_dna/taggers/tutorial.py`. We will walk through this example.
 
@@ -358,6 +359,10 @@ We might also want to sort the jets by b-tag score (rather than pT by default) i
 ```python
 bjets = jets[awkward.argsort(jets.btagDeepFlavB, axis = 1, ascending = False)]
 ```
+and define b-jets as those with a b-tag score greater than some working point (which likely varies by year):
+```python
+bjets = bjets[bjets.btagDeepFlavB > self.options["btag_wp"][self.year]]
+```
 
 we can then finish our preselection by making requirements on the number of leptons and jets:
 ```python
@@ -367,9 +372,10 @@ n_muons = awkward.num(muons)
 n_leptons = n_electrons + n_muons
 
 n_jets = awkward.num(jets)
+n_bjets = awkward.num(bjets)
 
 # Hadronic presel
-hadronic = (n_leptons == 0) & (n_jets >= 4)
+hadronic = (n_leptons == 0) & (n_jets >= 4) & (n_bjets >= 1)
 
 # Leptonic presel
 leptonic = (n_leptons >= 1) & (n_jets >= 2)
@@ -421,22 +427,24 @@ z_veto = ~(has_z_cand & (ee_event | mm_event))
 
 Lastly, we can register individual cuts with the `Tagger` object to have it print out diagnostic info for us:
 ```
-presel_cut = (hadronic | leptonic) & (z_veto)
+presel_cut = (hadronic | leptonic) & z_veto & photon_id_cut
 self.register_cuts(
-    names = ["hadronic presel", "leptonic presel", "z veto", "all"],
-    results = [hadronic, leptonic, z_veto, presel_cut]
+    names = ["hadronic presel", "leptonic presel", "z veto", "photon ID cut", "all"],
+    results = [hadronic, leptonic, z_veto, photon_id_cut, presel_cut]
 )
 ```
 This step is not necessary, but will print out some useful info that can be helpful for debugging and sanity checks:
 ```
 DEBUG    [Tagger] : my_TTHPreselTagger, syst variation : nominal, cut type : event, cut : hadronic       tagger.py:154
-         presel, efficiency : 0.5944                                                                                  
+         presel, efficiency : 0.5389                                                                                  
 DEBUG    [Tagger] : my_TTHPreselTagger, syst variation : nominal, cut type : event, cut : leptonic       tagger.py:154
-         presel, efficiency : 0.3003                                                                                  
+         presel, efficiency : 0.3011                                                                                  
 DEBUG    [Tagger] : my_TTHPreselTagger, syst variation : nominal, cut type : event, cut : z veto,        tagger.py:154
          efficiency : 0.9990                                                                                          
+DEBUG    [Tagger] : my_TTHPreselTagger, syst variation : nominal, cut type : event, cut : photon ID cut, tagger.py:154
+         efficiency : 0.6953                                                                                          
 DEBUG    [Tagger] : my_TTHPreselTagger, syst variation : nominal, cut type : event, cut : all,           tagger.py:154
-         efficiency : 0.8940
+         efficiency : 0.5917
 ```
 The diphoton tagger and the ttH preselection tagger can be included together in a tag sequence as shown in the config file `metadata/tutorial/tth_preselection.json` and we can test this for a few ttH MC files with the command:
 ```
