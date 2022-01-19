@@ -931,6 +931,12 @@ and pasting the output into a LaTeX file, we get a table that looks like this:
 
 ![ttH Preselection : Data/MC Yields](figures/data_mc_table.png)
 
-Next, we can get some summary plots of the systematics by rerunning and adding the `--assess_systematics` option. 
+Next, we can get some summary plots of the systematics by rerunning and adding the `--assess_systematics` option and specifying an output directory for the plots `--output_dir "tth_plots"`. The plot `tth_plots/weight_syst_ttH_M125.pdf` will show us the effect of the weight systematics on the signal yields:
+
+![ttH Weight Systematics](figures/weight_syst_ttH_M125.png)
+
+and we can also see the effect of the systematics with independent collections on the m_gg distribution:
+
+![ttH FNUF Uncertainty](figures/fnuf_mgg_ttH_M125.png)
 
 # awkward Arrays and Columnar Analysis
