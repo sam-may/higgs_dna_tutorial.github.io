@@ -973,4 +973,8 @@ and shape comparisons (plotted for "signal" processes only):
 
 ![Gen H pT shape plot](figures/GenHggHiggs_pt_shape.png)
 
+Note also that if your output directory has the ability to display webpages, you can add the option `--make_webpage` to get a nicely browsable page like this:
+
+![Webpage example](figures/webpage.png)
+
 # awkward Arrays and Columnar Analysis
