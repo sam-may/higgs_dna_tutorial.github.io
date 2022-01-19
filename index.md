@@ -910,7 +910,7 @@ We can start with the script `assess.py` under the directory `higgs_dna/bonus/`,
 
 To start, lets make a data/MC yields table. We point to the directory created by `run_analysis.py` and run with the `--make_tables` option:
 ```
-python bonus/assess.py --input_dir "scripts/tutorial_tth_withSyst" --make_tables
+python assess.py --input_dir "../scripts/tutorial_tth_withSyst" --make_tables
 ```
 The script then prints out a yields table that we can paste into a LaTeX file. However, the table is a bit hard to read, so lets refine it a bit. We can group together processes with the `--group_procs` option. We can group together all of the GJets HT-binned samples into a single entry, each of the tt+X samples, the W/Z + gamma samples, and the non-ttH Higgs production modes with:
 ```
@@ -922,8 +922,8 @@ Next, we can indicate our "signal" processes. These will be excluded from data/M
 ```
 Putting it all together:
 ```
-python bonus/assess.py
---input_dir "scripts/tutorial_tth_withSyst_v2/"
+python assess.py
+--input_dir "../scripts/tutorial_tth_withSyst_v2/"
 --make_tables
 --group_procs "OtherH:ggH_M125,VBFH_M125,VH_M125|GJets:GJets_HT-600ToInf,GJets_HT-400To600,GJets_HT-200To400,GJets_HT-100To200,GJets_HT-40To100|VGamma:ZGamma,WGamma|tt+X:TTGG,TTGamma,TTJets"
 --signals "ttH_M125,OtherH"
@@ -939,5 +939,38 @@ Next, we can get some summary plots of the systematics by rerunning and adding t
 and we can also see the effect of the systematics with independent collections on the m_gg distribution:
 
 ![ttH FNUF Uncertainty](figures/fnuf_mgg_ttH_M125.png)
+
+We can next make some data/MC plots with the help of a `json` file that indicates which fields we want to plot from the `parquet` file and giving plot options. For example, to plot the lead/sublead photon ID MVAs and the gen-level Higgs pT, we can do:
+```json
+{
+    "LeadPhoton_mvaID" : {
+        "bins" : "10, 0.0, 1.0",
+        "x_label" : "Lead gamma MVA ID",
+        "log_y" : true,
+        "overflow" : true
+    },
+    "SubleadPhoton_mvaID" : {
+        "bins" : "10, 0.0, 1.0",
+        "x_label" : "Sublead gamma MVA ID",
+        "log_y" : true,
+        "overflow" : true
+    },
+    "GenHggHiggs_pt" : {
+        "bins" : "20, 0.0, 300.0",
+        "x_label" : "Gen H->gg pT",
+        "log_y" : true,
+        "overflow" : true
+    }
+}
+```
+where the `"bins"` field should be given a string of 3 comma-separated floats indicating (1) the number of bins, (2) the lower x-limit, and (3) the upper x-limit.
+
+This will give us both data/MC comparison plots:
+
+![Lead Photon Data/MC plot](figures/LeadPhoton_mvaID_dataMC.png)
+
+and shape comparisons (plotted for "signal" processes only):
+
+![Gen H pT shape plot](figures/GenHggHiggs_pt_shape.png)
 
 # awkward Arrays and Columnar Analysis
