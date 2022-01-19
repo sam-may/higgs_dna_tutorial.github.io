@@ -977,4 +977,8 @@ Note also that if your output directory has the ability to display webpages, you
 
 ![Webpage example](figures/webpage.png)
 
+Finally, one more nice feature of `assess.py` is the ability to add cuts from the command line. For example, suppose we wanted to see if a cut on the photon ID MVA would reduce the relative contribution of background processes with fakes. We can add a cut on the lead and sublead MVA ID scores with `--cuts "LeadPhoton_mvaID:[0.9,1.0]|SubleadPhoton_mvaID:[0.9,1.0]"`.
+
+The syntax for cuts is `"<name of field>:[<lower cut value>,<upper cut value>]"` with additional cuts separated by `|`. Currently, only adding cuts together as "logical and" (i.e. `&&`) is supported. In the example above, we have selected events which have both lead and sublead photon ID MVA scores in the range [0.9, 1.0].
+
 # awkward Arrays and Columnar Analysis
