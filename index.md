@@ -451,6 +451,12 @@ The diphoton tagger and the ttH preselection tagger can be included together in 
 python run_analysis.py --log-level "DEBUG" --config "metadata/tutorial/tth_preselection.json" --merge_outputs --sample_list "ttH_M125" --output_dir "tutorial_tth" --short
 ```
 
+### Adding additional fields to outputs
+In our example, we saved a variety of variables related to the diphoton pair. For most analyses, you will want to save additional variables to make data/MC plots with, use in BDT/DNN training, etc.
+
+To do this, we would first calculate these variables in the tagger, 
+
+
 ### 3.2.2 Adding systematics
 Next, we can start to add corrections and scale factors (and possibly their uncertainties) to our analysis.
 Each systematic is implemented through a class derived from the `Systematic` class in `higgs_dna/systematics/systematic.py`.
@@ -820,8 +826,111 @@ WARNING  [Task : process] WARNING: Task 'TTGamma_2017' had to retire job 'TTGamm
 In this case, this is because some of the input nanoAOD files are corrupt. For MC, this simply reduces our statistics; however, for data we should ensure that all events are properly processed. Given that this is just a tutorial exercise, we can live with the 0.5% of missing data jobs.
 By default, HiggsDNA will "retire" a job after 5 unsuccesful tries. This allows the script to finish merging all of the outputs so you at least have something to work with. If you wish to resubmit all of the failed jobs again, you can do so by rerunning `run_analysis.py` with the `--resubmit_retired` argument. This will also reperform the merging and scale1fb calculation, so all of your MC will still be correctly normalized.
 
+HiggsDNA will also tell us exactly which jobs failed so we can navigate to their respective directories and investigate the log files, rerun locally by hand, etc:
+```
+WARNING  [AnalysisManager : run] WARNING: there were 33 retired jobs (meaning they failed up to the    analysis.py:322
+         maximum number of retries). You may want to look into these:                                                 
+WARNING           Data_2016_206                                                                        analysis.py:324
+WARNING           Data_2016_268                                                                        analysis.py:324
+WARNING           Data_2017_231                                                                        analysis.py:324
+WARNING           Data_2017_258                                                                        analysis.py:324
+WARNING           Data_2018_368                                                                        analysis.py:324
+WARNING           Data_2018_619                                                                        analysis.py:324
+WARNING           Data_2018_1033                                                                       analysis.py:324
+WARNING           Data_2018_1104                                                                       analysis.py:324
+WARNING           Data_2018_1207                                                                       analysis.py:324
+WARNING           Diphoton_2017_32                                                                     analysis.py:324
+WARNING           ZGamma_2016_25                                                                       analysis.py:324
+WARNING           WGamma_2017_3                                                                        analysis.py:324
+WARNING           TTGamma_2017_14                                                                      analysis.py:324
+WARNING           TTJets_2016_50                                                                       analysis.py:324
+WARNING           TTJets_2016_56                                                                       analysis.py:324
+WARNING           TTJets_2016_84                                                                       analysis.py:324
+WARNING           TTJets_2016_103                                                                      analysis.py:324
+WARNING           TTJets_2017_182                                                                      analysis.py:324
+WARNING           TTJets_2017_440                                                                      analysis.py:324
+WARNING           TTJets_2017_476                                                                      analysis.py:324
+WARNING           TTJets_2017_487                                                                      analysis.py:324
+WARNING           TTJets_2017_489                                                                      analysis.py:324
+WARNING           TTJets_2017_539                                                                      analysis.py:324
+WARNING           TTJets_2017_557                                                                      analysis.py:324
+WARNING           TTJets_2017_577                                                                      analysis.py:324
+WARNING           TTJets_2017_600                                                                      analysis.py:324
+WARNING           TTJets_2017_608                                                                      analysis.py:324
+WARNING           TTJets_2017_639                                                                      analysis.py:324
+WARNING           TTJets_2017_650                                                                      analysis.py:324
+WARNING           TTJets_2017_660                                                                      analysis.py:324
+WARNING           TTJets_2018_258                                                                      analysis.py:324
+WARNING           TTJets_2018_606                                                                      analysis.py:324
+WARNING           GJets_HT-100To200_2018_37                                                            analysis.py:324```
+
+For example, if we navigate to `tutorial_tth_withSyst/Data_2016/job_2016` we see the `json` config file for the job, the `python` wrapper, the executable that will be run for the remote job, the condor submission `.txt` file, as well as all of the logs from each of the 5 submissions:
+```
+ls -atlhr
+total 164K
+-rw-rw-r--.   1 smay smay 8.7K Jan 18 08:08 Data_2016_config_job206.json
+-rw-rw-r--.   1 smay smay  249 Jan 18 08:08 Data_2016_executable_job206.py
+-rw-rw-r--.   1 smay smay 2.6K Jan 18 08:08 Data_2016_executable_job206.sh
+-rw-rw-r--.   1 smay smay 1.2K Jan 18 08:08 Data_2016_batch_submit_job206.txt
+-rw-r--r--.   1 smay smay 4.4K Jan 18 08:45 416409.0.err
+-rw-r--r--.   1 smay smay 9.9K Jan 18 08:45 416409.0.out
+-rw-r--r--.   1 smay smay 3.3K Jan 18 08:45 416409.0.log
+-rw-r--r--.   1 smay smay 7.2K Jan 18 11:34 422818.0.err
+-rw-r--r--.   1 smay smay  11K Jan 18 11:34 422818.0.out
+-rw-r--r--.   1 smay smay 2.2K Jan 18 11:34 422818.0.log
+-rw-r--r--.   1 smay smay 5.1K Jan 18 11:40 422917.0.err
+-rw-r--r--.   1 smay smay  11K Jan 18 11:40 422917.0.out
+-rw-r--r--.   1 smay smay 2.1K Jan 18 11:40 422917.0.log
+-rw-r--r--.   1 smay smay 4.5K Jan 18 11:45 422941.0.err
+-rw-r--r--.   1 smay smay  11K Jan 18 11:45 422941.0.out
+-rw-r--r--.   1 smay smay 2.2K Jan 18 11:45 422941.0.log
+-rw-r--r--.   1 smay smay 4.5K Jan 18 11:51 422954.0.err
+drwxrwxr-x.   2 smay smay 4.0K Jan 18 11:51 .
+-rw-r--r--.   1 smay smay  10K Jan 18 11:51 422954.0.out
+-rw-r--r--.   1 smay smay 2.1K Jan 18 11:51 422954.0.log
+drwxrwxr-x. 402 smay smay  12K Jan 18 11:51 ..
+```
+we could submit this job to HTCondor with
+```
+condor_submit Data_2016_batch_submit_job206.txt
+```
+or run it locally with
+```
+python Data_2016_executable_job206.py
+```
+
 ### 3.2.4 Assessing the outputs
 Now that we have run a ttH preselection on Run 2 data and MC, we can begin to analyze the outputs from HiggsDNA.
-To start,
+We can start with the script `assess.py` under the directory `higgs_dna/bonus/`, which can do the following for us:
+- make data/MC yield tables
+- make data/MC plots
+- plot the effects of weight systematics
+- plot the effect on m_gg distributions for systematics with independent collections
+
+To start, lets make a data/MC yields table. We point to the directory created by `run_analysis.py` and run with the `--make_tables` option:
+```
+python bonus/assess.py --input_dir "scripts/tutorial_tth_withSyst" --make_tables
+```
+The script then prints out a yields table that we can paste into a LaTeX file. However, the table is a bit hard to read, so lets refine it a bit. We can group together processes with the `--group_procs` option. We can group together all of the GJets HT-binned samples into a single entry, each of the tt+X samples, the W/Z + gamma samples, and the non-ttH Higgs production modes with:
+```
+--group_procs "OtherH:ggH_M125,VBFH_M125,VH_M125|GJets:GJets_HT-600ToInf,GJets_HT-400To600,GJets_HT-200To400,GJets_HT-100To200,GJets_HT-40To100|VGamma:ZGamma,WGamma|tt+X:TTGG,TTGamma,TTJets"
+```
+Next, we can indicate our "signal" processes. These will be excluded from data/MC comparisons (as typically we will blind the m_gg [120,130] GeV region when developing analyses, and signals typically have nearly all of their events in this range).
+```
+--signals "ttH_M125,OtherH"
+```
+Putting it all together:
+```
+python bonus/assess.py
+--input_dir "scripts/tutorial_tth_withSyst_v2/"
+--make_tables
+--group_procs "OtherH:ggH_M125,VBFH_M125,VH_M125|GJets:GJets_HT-600ToInf,GJets_HT-400To600,GJets_HT-200To400,GJets_HT-100To200,GJets_HT-40To100|VGamma:ZGamma,WGamma|tt+X:TTGG,TTGamma,TTJets"
+--signals "ttH_M125,OtherH"
+```
+and pasting the output into a LaTeX file, we get a table that looks like this:
+
+![ttH Preselection : Data/MC Yields](figures/data_mc_table.png)
+
+Next, we can get some summary plots of the systematics by rerunning and adding the `--assess_systematics` option. 
 
 # awkward Arrays and Columnar Analysis
