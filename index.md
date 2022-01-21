@@ -2,7 +2,10 @@
 Welcome to the tutorial for the HiggsDNA (Higgs to Diphoton NanoAOD) framework! The [HiggsDNA](https://gitlab.cern.ch/HiggsDNA-project/HiggsDNA) repository provides tools for running a Higgs to diphoton analysis.
 
 # 1. Introduction
-TODO
+HiggsDNA provides tools for developing and executing Higgs to diphoton analyses, starting from the nanoAOD data tier.
+It was designed as a pure-python framework in order to achieve better integration with modern ML libraries like `xgboost` and `tensorflow` and to take advantage of highly performant columnar tools like `awkward` for performing selections and propagating systematics.
+
+This tutorial provides an introduction to the framework, with setup details in Section 2 and details on using the code for physics analysis, through the example of a ttH analysis, in Section 3.
 
 # 2. Setup
 The installation procedure consists in the following steps:
