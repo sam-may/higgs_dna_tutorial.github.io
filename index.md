@@ -70,7 +70,7 @@ If you notice issues with the ```conda pack``` command for creating the tarball,
 conda env update --file environment.yml --prune
 ``` 
 
-# 3. Using HiggsDNA for physics analysis 
+# 3. Using HiggsDNA for physics analysis : a ttH analysis 
 ## 3.1 Overview
 The likely starting point for the majority of users is the `scripts/run_analysis.py` script. This script can be used to run a selection (i.e. a sequence of `higgs_dna.taggers.tagger.Tagger` objects) and apply scale factors and corrections (i.e. a set of `higgs_dna.systematics.systematic.Systematic` objects) over a list of samples (specified through a `json` file), and create a set of ntuple-like outputs (in the `parquet` format) with a specified set of fields (or ``branches''), merging the outputs and calculating scale1fb and scaling the normalization of weights for MC samples, if requested.
 
@@ -142,12 +142,10 @@ A basic config file to run the diphoton preselection without systematics would l
 }
 ```
 
-## 3.2 Example : ttH analysis
+## 3.2 Constructing a tag sequence
 We can illustrate most of the functionality through an example: suppose I want to develop a ttH analysis.
 As a first step, we will run the standard diphoton preselection and a loose ttH preselection to produce a `parquet` file which we can use to make data/MC plots and yield tables and train MVAs.
-
-### 3.2.1 Constructing a tag sequence
-As an initial step, we can construct a `json` file which will perform the diphoton preselection. We can start with the the file above, which is also located in `higgs_dna/metadata/tutorial/diphoton.json`.
+We can construct a `json` file which will perform the diphoton preselection. We can start with the the file above, which is also located in `higgs_dna/metadata/tutorial/diphoton.json`.
 
 In this example, the `DiphotonTagger` would be run over all events (with the default options listed in `higgs_dna/taggers/diphoton_tagger.py`), saving the variables listed under `"variables_of_interest"` into parquet files. All samples listed under `"samples"` will be processed for all years listed under `"years"`. To start, we can run over just the ttH sample and run over just a couple files:
 ```
@@ -275,6 +273,7 @@ We can check the diphoton pT and compare it to the gen-level pT:
 <Array [91.2, 108, 109, 270, ... 13.4, 69, 224] type='539177 * float64'>
 ```
 
+### 3.2.1 Adding a tagger to a tag sequence
 Next, we can add a loose ttH preselection that one might use as a starting point for developing a ttH analysis: data/MC studies, training MVAs, etc.
 
 For a loose ttH preselection we will define two orthogonal channels, hadronic and leptonic, targeting fully hadronic and semi/di-leptonic decays of the ttbar system, respectively.
@@ -457,10 +456,32 @@ python run_analysis.py --log-level "DEBUG" --config "metadata/tutorial/tth_prese
 ### Adding additional fields to outputs
 In our example, we saved a variety of variables related to the diphoton pair. For most analyses, you will want to save additional variables to make data/MC plots with, use in BDT/DNN training, etc.
 
-To do this, we would first calculate these variables in the tagger, 
+To do this, we would first calculate these variables in the tagger, and then they can be added to the events array with helper functions from `higgs_dna.utils.awkward_utils`.
 
+For a simple event-level quantity, like the number of leptons or jets, use the `add_field` function:
+```
+awkward_utils.add_field(
+    syst_events, # array to add this field to 
+    "n_leptons", # name to give the field
+    n_leptons # actual data for the field
+)
+```
+For an object-level quantity, or more generally, a quantity that may have a variable length for each event, use the `add_object_fields` function. If we wanted to add the leading four jet kinematics, we could use:
+```
+awkward_utils.add_object_fields(
+    events = syst_events,
+    name = "jet",
+    objects = jets,
+    n_objects = 4,
+    dummy_value = -999
+)
+```
+This will add all fields of `jets` to `syst_events` with names of the format "jet_1_pt", "jet_3_eta", etc.
+For events with less than 4 jets, the fields will be "zero-padded" and a dummy value of `dummy_value` will be assigned. For example, if an event has only 2 jets, all "jet_3_*" and "jet_4_*" fields will be filled with `dummy_value` for that event.
 
-### 3.2.2 Adding systematics
+To save added fields in your output `parquet` files, simply add these to the `"variables_of_interest"` field in your config file. 
+
+### 3.3 Adding systematics
 Next, we can start to add corrections and scale factors (and possibly their uncertainties) to our analysis.
 Each systematic is implemented through a class derived from the `Systematic` class in `higgs_dna/systematics/systematic.py`.
 There are two main types of systematics to consider:
@@ -471,7 +492,7 @@ There are two main types of systematics to consider:
 
 Systematics can be specified through the config `json` file under the `"systematics"` field. This field is expected to contain a dictionary with two fields, `"weights"` and `"independent_collections"`, where the former will be translated into `WeightSystematic` objects and the latter will be translated into `SystematicWithIndependentCollection` objects by the `SystematicsProducer` class under `higgs_dna/systematics/systematics_producer.py`.
 
-### EventWeightSystematic 
+### 3.3.1 EventWeightSystematic 
 We will first examine how to implement various types of weight systematics. The simplest example is the case where the relevant weight(s) are stored as branches in the nanoAOD, like the L1-prefiring inefficieny and uncertainties. Supposing the central/up/down weights are stored as `L1PreFiringWeight_Nom`/`L1PreFiringWeight_Up`/`L1PreFiringWeight_Dn`, we can implement this in the following way:
 ```json
 "systematics" : {
@@ -527,7 +548,7 @@ A `WeightSystematic` does not need to modify the central value or even have a ce
 }
 ```
 
-### ObjectWeightSystematic
+### 3.3.2 ObjectWeightSystematic
 The syntax for implementing an `ObjectWeightSystematic` is similar, but we must also provide the *input* and *target* collections. The input collection is the set of objects on which this scale factor can be calculated while the target collection is the set of objects which should be used to derive the resulting event-level weight.
 
 We can see this through the example of the electron ID SF:
@@ -660,7 +681,7 @@ def electron_id_sf(events, year, central_only, input_collection, working_point =
     return variations
 ```
 
-### SystematicWithIndependentCollection
+### 3.3.3 SystematicWithIndependentCollection
 Finally, we will see how to add a systematic which varies an event- or object-level quantity and results in an entirely new set of events. Similar to `WeightSystematic`, a `SystematicWithIndependentCollection` can be specified to be read from a branch. 
 
 For example, if we had uncertainties on the photon energy scale saved in nanoAOD branches as `"Photon_pt_up"` and `"Photon_pt_down"`, we could create independent collections for the up/down variations with:
@@ -770,7 +791,7 @@ In our config file, this looks like the following:
 }
 ```
 
-### 3.2.3 Defining a list of samples
+### 3.4 Defining a list of samples
 So far, we have run on just a few ttH files, but now we can run our preselection (diphoton selection + loose ttH selection) at scale. The `"samples"` entry of the config file allows us to specify which samples and years to run over:
 ```json
 "samples" : {
@@ -819,6 +840,8 @@ Given that we have many samples and files to run over, we should utilize HTCondo
 python run_analysis.py --log-level "DEBUG" --config "metadata/tutorial/tth_presel_withSyst.json" --merge_outputs --output_dir "tutorial_tth_withSyst" --batch_system "condor"
 ```
 which took just under 5 hours for me (averaging a couple hundred condor slots at a time), YMMV.
+
+### 3.4.1 Job submission and debugging
 
 You may notice that some jobs fail repeatedly:
 ```
@@ -903,7 +926,7 @@ or run it locally with
 python Data_2016_executable_job206.py
 ```
 
-### 3.2.4 Assessing the outputs
+### 3.5 Assessing the outputs
 Now that we have run a ttH preselection on Run 2 data and MC, we can begin to analyze the outputs from HiggsDNA.
 We can start with the script `assess.py` under the directory `higgs_dna/bonus/`, which can do the following for us:
 - make data/MC yield tables
@@ -984,4 +1007,4 @@ Finally, one more nice feature of `assess.py` is the ability to add cuts from th
 
 The syntax for cuts is `"<name of field>:[<lower cut value>,<upper cut value>]"` with additional cuts separated by `|`. Currently, only adding cuts together as "logical and" (i.e. `&&`) is supported. In the example above, we have selected events which have both lead and sublead photon ID MVA scores in the range [0.9, 1.0].
 
-# awkward Arrays and Columnar Analysis
+# 4. awkward Arrays and Columnar Analysis
