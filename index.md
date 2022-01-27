@@ -50,6 +50,12 @@ setup.sh
 ```
 to install this script.
 
+Note: if you see errors about the `gzip -d jsonpog-integration/POG/*/*/*.gz` due to files not found, you can manually add the `jsonpog-integration` submodule with:
+```
+git submodule add ssh://git@gitlab.cern.ch:7999/cms-nanoaod/jsonpog-integration.git
+```
+This should be taken care of already by including the `--recursive` flag during the `git clone` step, but you may run into this issue if you are updating an already cloned area of HiggsDNA.
+
 **3. Install ```higgs_dna```**
 
 **Users** can install the package by simply running:
@@ -79,7 +85,29 @@ The `scripts/run_analysis.py` script can be used for a variety of purposes, incl
 - **Systematics studies** : creating ntuple-like files to form the starting point for performing systematics studies (e.g. deriving a correction/scale factor for photons in a Z->ee selection)
 - **Running a full analysis** : running a selection, possibly with multiple tags, and propagating relevant systematicsand their associated uncertainties.
 
-### 3.1.1 Creating a config file
+### 3.1.1 Quickstart cheatsheet/Q&A
+- Where do I start? Probably `scripts/run_analysis.py` (see above).
+- How do I implement the selection for my analysis? 
+    1. Create a `Tagger` with your selection. See Sec. 3.2.1.
+    2. Add the `Tagger` to your config file. See `metadata/tutorial/tth_preselection.json` for a simple ttH preselection `Tagger` added on top of the standard `DiphotonTagger`.
+- How do I save additional variables to my output files? 
+    1. Add variables to `events` array inside tagger with `higgs_dna.utils.awkward_utils.add_field` or `higgs_dna.utils.awkward_utils.add_object_fields`. See "Adding additional fields to outputs" under Sec. 3.2.1 and `higgs_dna/utils/awkward_utils.py` for more details.
+    2. Add variable names to the `"variables_of_interest"` field in your config file.
+- Where are my output files located? How are they organized?
+    - They will be located under the directory you specify for `--output_dir` when running `scripts/run_analysis.py`.
+    - A subdirectory will be created for each sample x year you run over.
+    - Within each sample x year subdirectory, there will be subdirectories for each job.
+    - Within each sample x year x job subdirectory, there will be a `.parquet` file for the nominal events called `output_job_N_nominal.parquet` and an additional one for each systematic with independent collection in the format `output_job_N_<SystName>_<SystVariation>.parquet`.
+    - If you specify the `--merge_outputs` option when running `scripts/run_analysis.py`, you will additionally have merged `.parquet` files within each sample x year subdirectory and merged `.parquet` files with the events from all samples x years located in the directory you specify for `--output_dir`. These will also have added fields `process_id` and `year` to identify which sample and year a given event belongs to. A file `summary.json` will also be present and contains a map of `process_id` (int) to sample names.
+    - If you specify the `--merge_outputs` option, event weights will also be multiplied by `scale1fb` and `lumi` for MC samples. The unmerged files will still have the original weights (not multiplied by `xs * bf * lumi / sum_of_weights`) if you did not desire for this to happen.
+- How do I analyze my output files? There are some tools available to you under `higgs_dna/bonus/` to make data/MC plots and tables, assess systematics, etc. See Sec. 3.5 for more details.
+- How do I add scale factors, corrections, or other systematics? See Sec. 3.3.
+- How do I specify which samples/years I run over?
+    - Most commonly used samples are planned to be available centrally within HiggsDNA. If the samples you want to run over are already in an existing catalog, you simply add the relevant samples and years to the `"samples"` field in your config file.
+    - If you need to add a new sample, you can create a new catalog or add to an existing one. See Sec. 3.4 for more details.
+
+
+### 3.1.2 Creating a config file
 The script can be configured to perform any of these tasks through a single `json` config file, where there are 5 main fields the user will want to pay attention to:
 1. `"tag_sequence"` : a list which specifies a set of `higgs_dna.taggers.tagger.Tagger` objects and dictates the event selection.
 2. `"systematics"` : a dictionary with two keys, `"weights"` and `"independent_collections"`, under which a dictionary is specified for each `higgs_dna.systematics.systematic.WeightSystematic` and `higgs_dna.systematics.systematic.SystematicWithIndependentCollection`, respectively.
@@ -489,6 +517,8 @@ There are two main types of systematics to consider:
     - `EventWeightSystematic`: a correction and/or uncertainty on the *central event weight*. This can be any of: event weight correction (e.g. pileup reweighting scale factor), event weight uncertainty (e.g. QCD scale/PDF/alpha_s weights. Up/down variations for the weight in each event, but does not modify the central event weight), or event weight correction and uncertainty (e.g. pileup reweighting scale factor and up/down variations)
     - `ObjectWeightSystematic`: a correction and/or uncertainty on a *per-object weight*. Almost always translated into a per-event weight. For example, lepton ID SFs: the scale factor ("correction") is calculated on a per-lepton basis. This gets translated into a per-event weight by multiplying the scale factors of each lepton selected by a tagger in each event.
 2. `SystematicWithIndependentCollection`: varies a per-event (e.g. MET resolution up/down) or per-object (e.g. photon scales/smearings up/down) quantity, and results in an entirely new set of events.
+    - Q: what do you mean, "an entirely new set of events?"?
+    - A: consider an example: the pT of hadronic jets are scaled by a correction factor called the Jet Energy Correction (JEC), usually derived and provided centrally by the JME group for CMS-wide use. There is some uncertainty in the JEC for a particular jet. If we vary the JEC up/down, we get two new values of jet pT. If my selection then involves cuts on the pT of jets, it is possible that in the nominal case a given event passes my jet threshold, while in the up/down variation that same event now does not pass because the jets have different pTs. For this reason, it is necessary to compute selections over each such variation. In HiggsDNA, the strategy currently taken is to "clone" the events for each such systematic variation, which we call a "systematic with an independent collection", and recompute the entire selection over the "cloned" events. 
 
 Systematics can be specified through the config `json` file under the `"systematics"` field. This field is expected to contain a dictionary with two fields, `"weights"` and `"independent_collections"`, where the former will be translated into `WeightSystematic` objects and the latter will be translated into `SystematicWithIndependentCollection` objects by the `SystematicsProducer` class under `higgs_dna/systematics/systematics_producer.py`.
 
