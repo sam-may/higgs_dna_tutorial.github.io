@@ -960,6 +960,13 @@ We can start with the script `assess.py` under the directory `higgs_dna/bonus/`,
 - plot the effects of weight systematics
 - plot the effect on m_gg distributions for systematics with independent collections
 
+You will need to install some additional packages for this tool, which you can do with:
+```
+pip install yahist
+pip install mplhep
+pip install xgboost # only needed if you want to use the train_bdt.py script
+```
+
 To start, lets make a data/MC yields table. We point to the directory created by `run_analysis.py` and run with the `--make_tables` option:
 ```
 python assess.py --input_dir "../scripts/tutorial_tth_withSyst" --make_tables
