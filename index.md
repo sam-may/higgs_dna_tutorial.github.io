@@ -7,6 +7,8 @@ It was designed as a pure-python framework in order to achieve better integratio
 
 This tutorial provides an introduction to the framework, with setup details in Section 2 and details on using the code for physics analysis, through the example of a ttH analysis, in Section 3.
 
+* * *
+
 # 2. Setup
 The installation procedure consists in the following steps:
 
@@ -75,6 +77,8 @@ If you notice issues with the ```conda pack``` command for creating the tarball,
 ```
 conda env update --file environment.yml --prune
 ``` 
+
+* * *
 
 # 3. Using HiggsDNA for physics analysis : a ttH analysis 
 ## 3.1 Overview
