@@ -998,6 +998,9 @@ Next, we can indicate our "signal" processes. These will be excluded from data/M
 ```
 --signals "ttH_M125,OtherH"
 ```
+
+Although our signal yield is very small in comparison to our background yields (and likely not visible by eye), its a good practice to keep our signal region blinded while developing an analysis. We can add the `--blind` option to exclude data events falling in the `Diphoton_mass` [120, 130] GeV region. This will also exclude background MC events in that region to keep the comparison apples to apples.
+
 Putting it all together:
 ```
 python assess.py
@@ -1005,6 +1008,7 @@ python assess.py
 --make_tables
 --group_procs "OtherH:ggH_M125,VBFH_M125,VH_M125|GJets:GJets_HT-600ToInf,GJets_HT-400To600,GJets_HT-200To400,GJets_HT-100To200,GJets_HT-40To100|VGamma:ZGamma,WGamma|tt+X:TTGG,TTGamma,TTJets"
 --signals "ttH_M125,OtherH"
+--blind
 ```
 and pasting the output into a LaTeX file, we get a table that looks like this:
 
