@@ -118,6 +118,8 @@ The `scripts/run_analysis.py` script can be used for a variety of purposes, incl
 - Some jobs are taking forever to run, can I just ignore them and have HiggsDNA merge my outputs?
     - Yes, you can run `scripts/run_analysis.py` with the `--retire_jobs` option which will deem each sample x year as "complete" provided that at least 1 job has finished. If 0 jobs have finished for a given sample x year, it will wait until there is at least 1 finished and then deem the sample x year as "complete".
     - You can undo this and resubmit the retired jobs with the `--unretire_jobs` option. HiggsDNA will remerge your output files and properly adjust scale1fbs for MC samples. 
+- It takes forever to find the files for my samples, can this be sped up?
+    - Yes. When specifying samples through `xrootd` directories or DBS 3-slash format (accesssed through `dasgoclient`), it can take a while to query all of the files. The `SampleManager` will create a copy of your original samples `json` with the full list of files printed out. This will have the same name as your original catalog with `"_sample_manager_full"` appended to the end. In ensuing runs, you can switch your config `json` to point to this version of the catalog by changing the `["samples"]["catalog"]` field.
 
 
 ### 3.1.2 Creating a config file
@@ -999,7 +1001,7 @@ Next, we can indicate our "signal" processes. These will be excluded from data/M
 Putting it all together:
 ```
 python assess.py
---input_dir "../scripts/tutorial_tth_withSyst_v2/"
+--input_dir "../scripts/tutorial_tth_withSyst/"
 --make_tables
 --group_procs "OtherH:ggH_M125,VBFH_M125,VH_M125|GJets:GJets_HT-600ToInf,GJets_HT-400To600,GJets_HT-200To400,GJets_HT-100To200,GJets_HT-40To100|VGamma:ZGamma,WGamma|tt+X:TTGG,TTGamma,TTJets"
 --signals "ttH_M125,OtherH"
@@ -1016,7 +1018,10 @@ and we can also see the effect of the systematics with independent collections o
 
 ![ttH FNUF Uncertainty](figures/fnuf_mgg_ttH_M125.png)
 
-We can next make some data/MC plots with the help of a `json` file that indicates which fields we want to plot from the `parquet` file and giving plot options. For example, to plot the lead/sublead photon ID MVAs and the gen-level Higgs pT, we can do:
+We can next make some data/MC plots with the help of a `json` file that indicates which fields we want to plot from the `parquet` file and giving plot options.
+Pass this `json` file (explained below) with the option `--plots <path_to_your.json>` to `assess.py`.
+
+For example, to plot the lead/sublead photon ID MVAs and the gen-level Higgs pT, we can do:
 ```json
 {
     "LeadPhoton_mvaID" : {
