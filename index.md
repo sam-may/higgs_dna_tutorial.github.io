@@ -56,7 +56,19 @@ Note: if you see errors about the `gzip -d jsonpog-integration/POG/*/*/*.gz` due
 ```
 git submodule add ssh://git@gitlab.cern.ch:7999/cms-nanoaod/jsonpog-integration.git
 ```
+
+and make sure to match the commit hash currently linked in the `master` branch with
+```
+git checkout <commit_hash>
+```
+
 This should be taken care of already by including the `--recursive` flag during the `git clone` step, but you may run into this issue if you are updating an already cloned area of HiggsDNA.
+
+Note: if you see warnings like:
+```
+gzip: jsonpog-integration/POG/TAU/2016postVFP_UL/tau.json already exists; do you wish to overwrite (y or n)?
+```
+it is safe to overwrite, this likely just means that you had previously un-zipped the files.
 
 **3. Install ```higgs_dna```**
 
@@ -101,6 +113,11 @@ The `scripts/run_analysis.py` script can be used for a variety of purposes, incl
 - How do I specify which samples/years I run over?
     - Most commonly used samples are planned to be available centrally within HiggsDNA. If the samples you want to run over are already in an existing catalog, you simply add the relevant samples and years to the `"samples"` field in your config file.
     - If you need to add a new sample, you can create a new catalog or add to an existing one. See Sec. 3.4 for more details.
+- What happens if I ctrl-c or lose my screen while running `run_analysis.py`?
+    - The script is designed to pick up right where it left off if this happens. It will remember the condor ids of any batch jobs, previous progress, etc. It is safe to ctrl-c and rerun the same command!
+- Some jobs are taking forever to run, can I just ignore them and have HiggsDNA merge my outputs?
+    - Yes, you can run `scripts/run_analysis.py` with the `--retire_jobs` option which will deem each sample x year as "complete" provided that at least 1 job has finished. If 0 jobs have finished for a given sample x year, it will wait until there is at least 1 finished and then deem the sample x year as "complete".
+    - You can undo this and resubmit the retired jobs with the `--unretire_jobs` option. HiggsDNA will remerge your output files and properly adjust scale1fbs for MC samples. 
 
 
 ### 3.1.2 Creating a config file
@@ -876,7 +893,7 @@ WARNING  [Task : process] WARNING: Task 'TTGamma_2017' had to retire job 'TTGamm
          statistics. If this is a data job, you have processed less events than you intended!
 ```
 In this case, this is because some of the input nanoAOD files are corrupt. For MC, this simply reduces our statistics; however, for data we should ensure that all events are properly processed. Given that this is just a tutorial exercise, we can live with the 0.5% of missing data jobs.
-By default, HiggsDNA will "retire" a job after 5 unsuccesful tries. This allows the script to finish merging all of the outputs so you at least have something to work with. If you wish to resubmit all of the failed jobs again, you can do so by rerunning `run_analysis.py` with the `--resubmit_retired` argument. This will also reperform the merging and scale1fb calculation, so all of your MC will still be correctly normalized.
+By default, HiggsDNA will "retire" a job after 5 unsuccesful tries. This allows the script to finish merging all of the outputs so you at least have something to work with. If you wish to resubmit all of the failed jobs again, you can do so by rerunning `run_analysis.py` with the `--unretire_jobs` argument. This will also reperform the merging and scale1fb calculation, so all of your MC will still be correctly normalized.
 
 HiggsDNA will also tell us exactly which jobs failed so we can navigate to their respective directories and investigate the log files, rerun locally by hand, etc:
 ```
