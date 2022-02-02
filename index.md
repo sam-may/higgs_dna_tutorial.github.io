@@ -886,6 +886,8 @@ python run_analysis.py --log-level "DEBUG" --config "metadata/tutorial/tth_prese
 ```
 which took just under 5 hours for me (averaging a couple hundred condor slots at a time), YMMV.
 
+Note: job submission on `lxplus` with an `/eos` output directory will not be able to run. The reason is that `lxplus` does not allow HTCondor log files to be placed in `/eos`, see [this page](https://batchdocs.web.cern.ch/troubleshooting/eos.html) . As a workaround, submit jobs with the output directory specified as your work area (or home area if you do not have a work area on `lxplus`). Once the jobs have finished, you can copy the results to your `/eos` area if desired. In the future, it would be nice to have the ability to submit directly with `/eos` as the output directory, but this is not yet implemented.
+
 ### 3.4.1 Job submission and debugging
 
 You may notice that some jobs fail repeatedly:
