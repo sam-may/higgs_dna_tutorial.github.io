@@ -2,14 +2,10 @@
 Welcome to the tutorial for the HiggsDNA (Higgs to Diphoton NanoAOD) framework! The [HiggsDNA](https://gitlab.cern.ch/HiggsDNA-project/HiggsDNA) repository provides tools for running a Higgs to diphoton analysis.
 
 # 1. Introduction
-<details>
-    <summary>Expand</summary>
+HiggsDNA provides tools for developing and executing Higgs to diphoton analyses, starting from the nanoAOD data tier.
+It was designed as a pure-python framework in order to achieve better integration with modern ML libraries like `xgboost` and `tensorflow` and to take advantage of highly performant columnar tools like `awkward` for performing selections and propagating systematics.
 
-    HiggsDNA provides tools for developing and executing Higgs to diphoton analyses, starting from the nanoAOD data tier.
-    It was designed as a pure-python framework in order to achieve better integration with modern ML libraries like `xgboost` and `tensorflow` and to take advantage of highly performant columnar tools like `awkward` for performing selections and propagating systematics.
-
-    This tutorial provides an introduction to the framework, with setup details in Section 2 and details on using the code for physics analysis, through the example of a ttH analysis, in Section 3.
-</details>
+This tutorial provides an introduction to the framework, with setup details in Section 2 and details on using the code for physics analysis, through the example of a ttH analysis, in Section 3.
 
 ## 1.1 Columnar Analysis
 HiggsDNA is based on a "columnar" style of analysis, where event selections are performed in a vectorized fashion (i.e. `numpy`-style operations).
@@ -343,13 +339,111 @@ tag_sequence = TagSequence(
 ```
 where the `TagSequence` instance will internally import the relevant modules and classes for us. This design principle becomes useful in completely `json`-ifying analyses.
 
-### 1.3.1 Systematics
+### 1.2.2 Systematics
 Systematics share a common base-class, `Systematic`, and are divided into three derived classes, shown in the diagram below:
 1. EventWeightSystematic
 2. ObjectWeightSystematic
 3. SystematicWithIndependentCollection
  
 ![Systematics class structure](figures/Systematic.png)
+
+To understand why this class structure is chosen, we must first understand how systematics are typically accounted for in HEP analyses.
+First, systematics can either be implemented as variations in the event **weight** or an event **quantity**.
+
+An example of the first would be the uncertainty in a lepton scale factor.
+A lepton scale factor is required because our simulation of lepton reconstruction in the CMS detector does not exactly match reality (i.e. data).
+These scale factors would typically be derived as a function of the lepton pT and eta, where we might find that for a lepton with pT of 25 GeV and eta of 2.1, the scale factor is 0.98, meaning leptons like this one are reconstructed with only 98% efficiency with respect to the predictions from simulation.
+This scale factor would probably be derived with the tag-and-probe method in Z->ll events, but there are limitations to this: we dont know that the scale factor is *exactly* 0.98, and so we typically also derive an uncertainty.
+Suppose the uncertainty is 0.01: this is a statement that leptons like this one are reconstructed with 98% +/- 1% with respect to the predictions from simulation.
+For cases like this, we can simply vary the weights up and down to see how our signal or background model varies with the lepton scale factor uncertainty. 
+We call systematics like these "weight systematics"
+
+An example of the second would be the uncertainty in a jet energy correction.
+Hadronic jets have energy corrections applied to them, i.e. `jet_pt_corrected = jet_pt_raw * jet_energy_correction`.
+Typically these are derived by requiring pT balance in dijet and Z->ll + jets events (see JME group TWiki for many more details).
+As for the lepton scale factor, this correction has some uncertainty, which we can vary up and down to see its effect on our signal and background models.
+However, this cannot be treated in exactly the same way as the lepton scale factor for the following reason:
+- when we vary the jet pT up or down, its pT changes
+- if our selection makes requirements on the number of jets with pT above some value, varying the jet energy correction may result in an event which previously passed our selection to no longer pass the selection (or vice versa)
+
+In this way, we end up with an entirely separate set of events passing our selection when we vary this systematic.
+We call systematics like these "systematics with independent collections".
+
+Realistic examples of both types of weight systematic (`EventWeightSystematic` and `ObjectWeightSystematic`) and systematics with independent collections (`SystematicWithIndependentCollection`)are given in Section 3.
+
+In HiggsDNA, systematics can be explicitly created:
+```python
+from higgs_dna.systematics.systematic import EventWeightSystematic
+l1_prefiring = EventWeightSystematic(
+        name = "l1_prefiring",
+        method = "from_branch",
+        branches = {
+            "central" : "L1PreFiringWeight_Nom",
+            "up" : "L1PreFiringWeight_Up",
+            "down" : "L1PreFiringWeight_Dn"
+        },
+        modify_central_weight = True
+)
+
+events = l1_prefiring.produce(events) # produce relevant branches
+events = l1_prefiring.apply(events) # modify the central event weight
+```
+
+but it is easier to pass these as a dictionary/`json` to a `SystematicsProducer`, which will create all of them for us and apply and produce them at the appropriate times.
+```python
+from higgs_dna.systematics.systematics_producer import SystematicsProducer
+systematic_options = {
+    "weights" : {
+        "L1_prefiring_sf" : {
+                "type" : "event",
+                "method" : "from_branch",
+                "branches" : {
+                    "central" : "L1PreFiringWeight_Nom",
+                    "up" : "L1PreFiringWeight_Up",
+                    "down" : "L1PreFiringWeight_Dn"
+                },
+                "modify_central_weight" : True,
+                "years" : ["2016", "2017"]
+            }
+    "independent_collections" : {
+            "fnuf" : {
+                "method" : "from_function",
+                "branch_modified" : ["Photon", "pt"],
+                "function" : {
+                    "module_name" : "higgs_dna.systematics.photon_systematics",
+                    "name" : "fnuf_unc"
+                }
+            }
+    }
+}
+
+systematics_producer = SystematicsProducer(options = systematic_options)
+```
+
+Details for specifying systematics from dictionary/`json`-like inputs are explained in Section 3.3.
+
+### 1.2.3 Samples
+A `Sample` is an object to hold relevant metadata for a given sample.
+A `SampleManager` is, similar to a `SystematicsProducer`, an object which contains multiple `Sample` instances and facilitates common sample operations.
+
+These can be accessed with
+```python
+from higgs_dna.samples.sample import Sample
+from higgs_dna.samples.sample_manager import SampleManager
+```
+but typically you will not need to ever create these yourself. Instead you can specify the relevant details through your `json` file and HiggsDNA will take care of all the details -- see Section 3.4 for more details.
+
+### 1.2.4 Job Management
+Todo
+
+### 1.2.5 Putting it all together: AnalysisManager
+All aspects of HiggsDNA come together with the `AnalysisManager`, located in `higgs_dna.analysis.AnalysisManager`.
+The relationship is depicted below:
+
+![HiggsDNA full workflow](figures/hdna_full_4Feb2022.png) 
+
+In practice, it is not necessary to understand all of the details -- most users should be able to simply pass their config `json` files to `scripts/run_analysis.py` and have all of the details taken care of internally.
+See Section 3 for more details on how this is done.
 
 * * *
 
