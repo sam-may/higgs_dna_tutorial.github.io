@@ -1506,4 +1506,3 @@ Finally, one more nice feature of `assess.py` is the ability to add cuts from th
 
 The syntax for cuts is `"<name of field>:[<lower cut value>,<upper cut value>]"` with additional cuts separated by `|`. Currently, only adding cuts together as "logical and" (i.e. `&&`) is supported. In the example above, we have selected events which have both lead and sublead photon ID MVA scores in the range [0.9, 1.0].
 
-# 4. awkward Arrays and Columnar Analysis
