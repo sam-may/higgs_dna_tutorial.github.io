@@ -224,6 +224,121 @@ events["Jet"].pt = awkward.ones_like(events.Jet.pt) # does NOT work
 ```
 all of the examples above will run without error, but some of them do not do what you intend.
 
+## 1.2 HiggsDNA : Concepts
+The core idea behind HiggsDNA is to have an analysis be completely reproducible through two inputs:
+1. A `json` file specifying the samples, selection, and systematics.
+2. A commit hash of HiggsDNA (to ensure the actual code is the same)
+
+Section 3 will explain how to set up your analysis ("analysis" may be an actual full analysis, or your preselection for making ntuples to develop your analysis and/or perform systematics studies, etc.) in the `json` style.
+Here we explore the core code structure of HiggsDNA.
+
+### 1.2.1 Tagger & TagSequence
+For selections, the `Tagger` object is the starting point.
+A new tagger can be created from the base `Tagger` class and has one function `calculate_selection` which needs to be defined.
+This function should always take two arguments:
+    1. `self` : i.e. the `Tagger` instance
+    2. `events` : an `awkward.Array`
+And it should always return two things:
+    1. `cut` : the cut to select events for this `Tagger`
+    2. `events` : the same `events` which were given as input, however, it may now have added fields
+
+It is easiest to illustrate this through an example -- a tagger selecting events with at least one lepton would look like this:
+```
+from higgs_dna.taggers.tagger import Tagger
+class LeptonicTagger(Tagger):
+    def calculate_selection(self, events):
+        electron_cut = (events.Electron.pt > 20.) & (abs(events.Electron.eta) < 2.5)
+        events["SelectedElectron"] = events.Electron[electron_cut]
+
+        muon_cut = (events.Muon.pt > 20.) & (abs(events.Muon.eta) < 2.5)
+        events["SelectedMuon"] = events.Muon[muon_cut]
+
+        n_leptons = awkward.num(events.SelectedElectron) + awkward.num(events.SelectedMuon)
+        cut = n_leptons >= 1
+
+        return cut, events
+``` 
+
+We can also import existing taggers:
+```
+from higgs_dna.taggers.diphoton_tagger import DiphotonTagger
+dipho_tagger = DiphotonTagger(
+        name = "my_diphoton_tagger",
+)
+```
+Usually taggers are implemented with default options, which we can check with:
+```
+>>> dipho_tagger.options
+{'photons': {'use_central_nano': True, 'pt': 25.0, 'eta': [[0.0, 1.4442], [1.566, 2.5]], 'e_veto': 0.5, 'hoe': 0.08, 'r9': 0.8, 'charged_iso': 20.0, 'charged_rel_iso': 0.3, 'hlt': {'eta_rho_corr': 1.5, 'low_eta_rho_corr': 0.16544, 'high_eta_rho_corr': 0.13212, 'eb_high_r9': {'r9': 0.85}, 'eb_low_r9': {'r9': 0.5, 'pho_iso': 4.0, 'track_sum_pt': 6.0, 'sigma_ieie': 0.015}, 'ee_high_r9': {'r9': 0.9}, 'ee_low_r9': {'r9': 0.8, 'pho_iso': 4.0, 'track_sum_pt': 6.0, 'sigma_ieie': 0.035}}}, 'diphotons': {'lead_pt': 35.0, 'sublead_pt': 25.0, 'lead_pt_mgg': 0.33, 'sublead_pt_mgg': 0.25, 'mass': [100.0, 180.0], 'select_highest_pt_sum': True}, 'trigger': {'2016': ['HLT_Diphoton30_18_R9Id_OR_IsoCaloId_AND_HE_R9Id_Mass90'], '2017': ['HLT_Diphoton30_22_R9Id_OR_IsoCaloId_AND_HE_R9Id_Mass90'], '2018': ['HLT_Diphoton30_22_R9Id_OR_IsoCaloId_AND_HE_R9Id_Mass90']}, 'gen_info': {'calculate': False, 'max_dr': 0.2, 'max_pt_diff': 15.0}}
+```
+
+And taggers can be chained together in a `TagSequence`:
+```python
+from higgs_dna.taggers.tag_sequence import TagSequence
+tag_sequence = TagSequence(
+    tag_list = [
+        diphoton_tagger,
+        leptonic_tagger
+    ]
+)
+```
+In constructing a tag sequence, the first tagger in the list will be run first and any events passing that taggers selection will be passed on to any ensuing taggers.
+In this way, `leptonic_tagger` will only perform its calculations on events which passed the `diphoton_tagger` selection.
+
+A tag sequence can also enforce orthogonality between multiple taggers. Orthogonality is indicated with a list within the list:
+```python
+tag_sequence = TagSequence(
+    tag_list = [
+        diphoton_tagger,
+        [leptonic_tagger, some_other_tagger],
+    ]
+)
+```
+In this example, events which pass the `diphoton_tagger` will be given to both the `leptonic_tagger` and `some_other_tagger`, but the `TagSequence` will give priority to events entering the `leptonic_tagger` since it was given first in the list within the list.
+In other words, any events that pass both `leptonic_tagger` selection and `some_other_tagger` selection will be marked as tagged by `leptonic_tagger`.
+
+In a more realistic example, the STXS analysis might have a tag sequence that looks something like this:
+```python
+tag_sequence = TagSequence(
+    tag_list = [
+        diphoton_tagger,
+        [thq_leptonic_tagger, tth_leptonic_tagger, vh_leptonic_tagger, ...
+    ]
+)
+```
+
+For optimizing performance, a useful design principle is to split taggers up into pieces. For example, my analysis might consist of:
+1. Diphoton preselection
+2. Analysis-specific preselection (e.g. cuts on leptons, jets, etc.)
+3. BDT/DNN-based signal categorization
+
+The BDT/DNN could be very large and computationally expensive to run, so we could split 2 and 3 into two separate taggers to only evaluate the BDT/DNN on events which pass the analysis preselection:
+```python
+tag_sequence = TagSequence(
+    tag_list = [
+        diphoton_tagger,
+        analysis_presel_tagger,
+        analysis_mva_sr_tagger
+    ]
+)
+```
+
+Finally, the `tag_list` argument can also be given as a `dict`/`json`-like input:
+```python
+tag_sequence = TagSequence(
+    tag_list = [
+        {
+            "module_name" : "higgs_dna.taggers.diphoton_tagger",
+            "tagger" : "DiphotonTagger",
+        },
+        {
+            "module_name" : "higgs_dna.taggers.tutorial",
+            "tagger" : "TTHPreselTagger"
+        }
+    ]
+```
+where the `TagSequence` instance will internally import the relevant modules and classes for us. This design principle becomes useful in completely `json`-ifying analyses.
+
 * * *
 
 # 2. Setup
