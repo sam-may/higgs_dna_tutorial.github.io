@@ -2,10 +2,14 @@
 Welcome to the tutorial for the HiggsDNA (Higgs to Diphoton NanoAOD) framework! The [HiggsDNA](https://gitlab.cern.ch/HiggsDNA-project/HiggsDNA) repository provides tools for running a Higgs to diphoton analysis.
 
 # 1. Introduction
-HiggsDNA provides tools for developing and executing Higgs to diphoton analyses, starting from the nanoAOD data tier.
-It was designed as a pure-python framework in order to achieve better integration with modern ML libraries like `xgboost` and `tensorflow` and to take advantage of highly performant columnar tools like `awkward` for performing selections and propagating systematics.
+<details>
+    <summary>Expand</summary>
 
-This tutorial provides an introduction to the framework, with setup details in Section 2 and details on using the code for physics analysis, through the example of a ttH analysis, in Section 3.
+    HiggsDNA provides tools for developing and executing Higgs to diphoton analyses, starting from the nanoAOD data tier.
+    It was designed as a pure-python framework in order to achieve better integration with modern ML libraries like `xgboost` and `tensorflow` and to take advantage of highly performant columnar tools like `awkward` for performing selections and propagating systematics.
+
+    This tutorial provides an introduction to the framework, with setup details in Section 2 and details on using the code for physics analysis, through the example of a ttH analysis, in Section 3.
+</details>
 
 ## 1.1 Columnar Analysis
 HiggsDNA is based on a "columnar" style of analysis, where event selections are performed in a vectorized fashion (i.e. `numpy`-style operations).
@@ -338,6 +342,14 @@ tag_sequence = TagSequence(
     ]
 ```
 where the `TagSequence` instance will internally import the relevant modules and classes for us. This design principle becomes useful in completely `json`-ifying analyses.
+
+### 1.3.1 Systematics
+Systematics share a common base-class, `Systematic`, and are divided into three derived classes, shown in the diagram below:
+1. EventWeightSystematic
+2. ObjectWeightSystematic
+3. SystematicWithIndependentCollection
+ 
+![Systematics class structure](figures/Systematic.png)
 
 * * *
 
