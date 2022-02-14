@@ -452,9 +452,12 @@ The installation procedure consists in the following steps:
 
 **1. Clone this repository**
 ```  
-git clone --recursive https://gitlab.cern.ch/HiggsDNA-project/HiggsDNA
+git clone --recursive https://gitlab.cern.ch/smay/HiggsDNA.git
 cd HiggsDNA
+git fetch origin correctionlib_systematics
+git checkout correctionlib_systematics
 ```
+
 **2. Install dependencies**
 
 The necessary dependencies (listed in ```environment.yml```) can be installed manually, but the suggested way is to create a [conda environment](https://docs.conda.io/projects/conda/en/latest/user-guide/tasks/mana
@@ -816,11 +819,11 @@ In doing this, the pT cuts for the electrons and muons will be 20.0, while all o
 We first calculate the cut which gives us the selected electrons from the input Electron collection:
 ```python
 electron_cut = lepton_selections.select_electrons(
-	electrons = syst_events.Electron,
+	electrons = events.Electron,
 	options = self.options["electrons"],
 	clean = {
 	    "photons" : {
-		"objects" : syst_events.Diphoton.Photon,
+		"objects" : events.Diphoton.Photon,
 		"min_dr" : self.options["electrons"]["dr_photons"]
 	    }
 	},
@@ -831,9 +834,9 @@ electron_cut = lepton_selections.select_electrons(
 and then add these electrons to the events array with the name "SelectedElectron":
 ```python
 electrons = awkward_utils.add_field(
-	events = syst_events,
+	events = events,
 	name = "SelectedElectron",
-	data = syst_events.Electron[electron_cut]
+	data = events.Electron[electron_cut]
 )
 ```
 it is important to add the selected electrons to the events array if other Taggers or Systematics will need to access these (for example, if we wanted to calculate apply an electron scale factor, this would likely be applied on SelectedElectron, rather than the nominal Electron collection in the nanoAODs). We can then do the same for the muons and the jets.
@@ -865,7 +868,7 @@ leptonic = (n_leptons >= 1) & (n_jets >= 2)
 
 presel_cut = hadronic | leptonic
 
-return presel_cut, syst_events
+return presel_cut, events
 ```
 
 ### Advanced selections
@@ -942,7 +945,7 @@ To do this, we would first calculate these variables in the tagger, and then the
 For a simple event-level quantity, like the number of leptons or jets, use the `add_field` function:
 ```
 awkward_utils.add_field(
-    syst_events, # array to add this field to 
+    events, # array to add this field to 
     "n_leptons", # name to give the field
     n_leptons # actual data for the field
 )
@@ -950,14 +953,14 @@ awkward_utils.add_field(
 For an object-level quantity, or more generally, a quantity that may have a variable length for each event, use the `add_object_fields` function. If we wanted to add the leading four jet kinematics, we could use:
 ```
 awkward_utils.add_object_fields(
-    events = syst_events,
+    events = events,
     name = "jet",
     objects = jets,
     n_objects = 4,
     dummy_value = -999
 )
 ```
-This will add all fields of `jets` to `syst_events` with names of the format "jet_1_pt", "jet_3_eta", etc.
+This will add all fields of `jets` to `events` with names of the format "jet_1_pt", "jet_3_eta", etc.
 For events with less than 4 jets, the fields will be "zero-padded" and a dummy value of `dummy_value` will be assigned. For example, if an event has only 2 jets, all "jet_3_*" and "jet_4_*" fields will be filled with `dummy_value` for that event.
 
 To save added fields in your output `parquet` files, simply add these to the `"variables_of_interest"` field in your config file. 
