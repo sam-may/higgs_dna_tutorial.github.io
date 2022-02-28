@@ -1,3 +1,39 @@
+Table of Contents
+=================
+
+* [HiggsDNA Tutorial](#higgsdna-tutorial)
+* [1. Introduction](#1-introduction)
+   * [1.1 Columnar Analysis](#11-columnar-analysis)
+      * [1.1.1 Columnar vs. Per-Event Analysis](#111-columnar-vs-per-event-analysis)
+      * [1.1.2 Complex selections in columnar-style](#112-complex-selections-in-columnar-style)
+      * [1.1.3 Notes on awkward, uproot, and vector](#113-notes-on-awkward-uproot-and-vector)
+   * [1.2 HiggsDNA : Concepts](#12-higgsdna--concepts)
+      * [1.2.1 Tagger &amp; TagSequence](#121-tagger--tagsequence)
+      * [1.2.2 Systematics](#122-systematics)
+      * [1.2.3 Samples](#123-samples)
+      * [1.2.4 Job Management](#124-job-management)
+      * [1.2.5 Putting it all together: AnalysisManager](#125-putting-it-all-together-analysismanager)
+* [2. Setup](#2-setup)
+* [3. Using HiggsDNA for physics analysis : a ttH analysis](#3-using-higgsdna-for-physics-analysis--a-tth-analysis)
+   * [3.1 Overview](#31-overview)
+      * [3.1.1 Quickstart cheatsheet/Q&amp;A](#311-quickstart-cheatsheetqa)
+      * [3.1.2 Creating a config file](#312-creating-a-config-file)
+   * [3.2 Constructing a tag sequence](#32-constructing-a-tag-sequence)
+      * [3.2.1 Adding a tagger to a tag sequence](#321-adding-a-tagger-to-a-tag-sequence)
+      * [Advanced selections](#advanced-selections)
+      * [Adding additional fields to outputs](#adding-additional-fields-to-outputs)
+      * [3.3 Adding systematics](#33-adding-systematics)
+      * [3.3.1 EventWeightSystematic](#331-eventweightsystematic)
+      * [3.3.2 ObjectWeightSystematic](#332-objectweightsystematic)
+      * [3.3.3 SystematicWithIndependentCollection](#333-systematicwithindependentcollection)
+      * [3.4 Defining a list of samples](#34-defining-a-list-of-samples)
+      * [3.4.1 Job submission and debugging](#341-job-submission-and-debugging)
+      * [3.5 Assessing the outputs](#35-assessing-the-outputs)
+
+Created by [gh-md-toc](https://github.com/ekalinin/github-markdown-toc)
+
+----
+
 # HiggsDNA Tutorial
 Welcome to the tutorial for the HiggsDNA (Higgs to Diphoton NanoAOD) framework! The [HiggsDNA](https://gitlab.cern.ch/HiggsDNA-project/HiggsDNA) repository provides tools for running a Higgs to diphoton analysis.
 
